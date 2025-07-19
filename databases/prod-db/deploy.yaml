@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prod-db-configmap
+  namespace: databases
+  labels:
+    app: prod-db
+data:
+  postgres-dbname: db
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: prod-db-nfs-pv
+  namespace: prod-db
+  labels:
+    app: prod-db
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  local:
+    path: VOLUME_PATH
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - HOSTNAME_DNS
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: prod-db-pv-claim
+  namespace: databases
+  labels:
+    app: prod-db
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: prod-db-secret
+  namespace: databases
+  labels:
+    app: prod-db
+type: Opaque
+data:
+  postgres-root-username: ""
+  postgres-root-password: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prod-db
+  namespace: databases
+spec:
+  selector:
+    matchLabels:
+      app: prod-db
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: prod-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:13-alpine
+          imagePullPolicy: "IfNotPresent"
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: prod-db-secret
+                  key: postgres-root-username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: prod-db-secret
+                  key: postgres-root-password
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: prod-db-configmap
+                  key: postgres-dbname
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: prod-db
+              readOnly: false
+      volumes:
+        - name: prod-db
+          persistentVolumeClaim:
+            claimName: prod-db-pv-claim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: databases
+  name: prod-db-service
+spec:
+  selector:
+    app: prod-db
+  type: NodePort
+  ports:
+    - name: prod-db
+      port: 5432
+      nodePort: 5430
+

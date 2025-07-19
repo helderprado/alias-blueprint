@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mlflow-db-nfs-pv
+  namespace: mlflow-db
+  labels:
+    app: mlflow-db
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  local:
+    path: VOLUME_PATH
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - HOSTNAME_DNS
+
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: mlflow-db-pv-claim
+  namespace: databases
+  labels:
+    app: mlflow-db
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mlflow-db-secret
+  namespace: databases
+  labels:
+    app: mlflow-db
+type: Opaque
+data:
+  MLFLOW_DATABASE_USER: ""
+  MLFLOW_DATABASE_PASSWORD: ""
+  MLFLOW_DATABASE_NAME: ""
+  MLFLOW_ROOT_PASSWORD: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-db
+  namespace: databases
+spec:
+  selector:
+    matchLabels:
+      app: mlflow-db
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: mlflow-db
+    spec:
+      containers:
+        - name: mysql
+          image: mysql/mysql-server:5.7.28
+          imagePullPolicy: "IfNotPresent"
+
+          envFrom:
+            - secretRef:
+                name: mlflow-db-secret
+                
+          volumeMounts:
+            - mountPath: /var/lib/mysql
+              name: mlflow-db
+              readOnly: false
+      volumes:
+        - name: mlflow-db
+          persistentVolumeClaim:
+            claimName: mlflow-db-pv-claim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: databases
+  name: mlflow-db-service
+spec:
+  selector:
+    app: mlflow-db
+  type: NodePort
+  ports:
+    - name: mlflow-db
+      port: 3306
+      nodePort: 30706

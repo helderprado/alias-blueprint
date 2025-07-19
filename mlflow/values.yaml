@@ -1,0 +1,22 @@
+backendStore:
+  databaseMigration: true
+  databaseConnectionCheck: true
+  mysql:
+    enabled: true
+    host: "mlflow-db-service.databases.svc.cluster.local"
+    port: 3306
+    database: "mlflow"
+    user: "mlflow"
+    password: "mlflow"
+
+artifactRoot:
+  s3:
+    enabled: true
+    bucket: ""
+    awsAccessKeyId: ""
+    awsSecretAccessKey: ""
+
+
+extraEnvVars:
+  MLFLOW_ARTIFACT_ROOT: "s3://{BUCKET_NAME}/ML_MODELS"
+

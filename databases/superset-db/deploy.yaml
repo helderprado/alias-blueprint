@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: superset-db-configmap
+  namespace: databases
+  labels:
+    app: superset-db
+data:
+  postgres-dbname: db
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: superset-db-nfs-pv
+  namespace: superset-db
+  labels:
+    app: superset-db
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  local:
+    path: VOLUME_PATH
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - HOSTNAME_DNS
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: superset-db-pv-claim
+  namespace: databases
+  labels:
+    app: superset-db
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: superset-db-secret
+  namespace: databases
+  labels:
+    app: superset-db
+type: Opaque
+data:
+  postgres-root-username: ""
+  postgres-root-password: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: superset-db
+  namespace: databases
+spec:
+  selector:
+    matchLabels:
+      app: superset-db
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: superset-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:14
+          imagePullPolicy: "IfNotPresent"
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: superset-db-secret
+                  key: postgres-root-username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: superset-db-secret
+                  key: postgres-root-password
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: superset-db-configmap
+                  key: postgres-dbname
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: superset-db
+              readOnly: false
+      volumes:
+        - name: superset-db
+          persistentVolumeClaim:
+            claimName: superset-db-pv-claim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: databases
+  name: superset-db-service
+spec:
+  selector:
+    app: superset-db
+  type: ClusterIP
+  ports:
+    - name: superset-db
+      port: 5432
+

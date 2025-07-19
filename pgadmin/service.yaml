@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgadmin-service
+  namespace: pgadmin
+spec:
+  selector:
+    app: pgadmin
+  type: NodePort
+  ports:
+    - name: pgadmin
+      port: 16543
+      targetPort: 80
+      nodePort: 9083
+

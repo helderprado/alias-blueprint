@@ -1,0 +1,62 @@
+hub:
+  image:
+    name: HOSTNAME_IP:10000/jupyter-hub-k8s
+    tag: '1.0.0'
+    pullPolicy: 'Always'
+    pullSecrets: 
+      - regcred
+
+  extraEnv:
+    JUPYTERHUB_CRYPT_KEY: "$(openssl rand -hex 32)"
+
+  config:
+    JupyterHub:
+      authenticator_class:: "dummy"
+    DummyAuthenticator:
+      password: "v2nkSpdS7NAfDuF2"
+
+  extraConfig:
+    startTimeout: |
+      c.KubeSpawner.start_timeout = 600  # Timeout de 10 minutos para iniciar os pods dos usuários
+
+    pod_ip: |
+      from kubernetes import client
+      def modify_pod_hook(spawner, pod):
+          pod.spec.containers[0].env.append(client.V1EnvVar("MY_POD_IP", None, client.V1EnvVarSource(None, client.V1ObjectFieldSelector(None, "status.podIP"))))
+          return pod
+      c.KubeSpawner.modify_pod_hook = modify_pod_hook
+
+proxy:
+  secretToken: fb4dc5bbd78a8206a4e2760f41b3859aa0900ddbe4c677cb4c00b5d080dbe593
+  service:
+    type: NodePort
+    nodePorts:
+      http: 8889
+
+singleuser:
+  storage:
+    type: "static"
+    static:
+      pvcName: "nfs-share-pvc"
+      subPath: "{username}"
+    capacity: 10Gi
+    homeMountPath: /home/jovyan/work
+  serviceAccountName: spark
+  image:
+    name: jupyter/all-spark-notebook
+    tag: python-3.11
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+  cpu:
+    limit: 1
+    guarantee: 0.5
+  memory:
+    limit: 2G
+    guarantee: 1G
+  defaultUrl: "/lab"
+  cmd: jupyterhub-singleuser
+  networkPolicy:
+    enabled: false
+  extraEnv:
+    AWS_ACCESS_KEY: ""
+    AWS_SECRET_KEY: ""

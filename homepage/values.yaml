@@ -1,0 +1,103 @@
+image:
+  repository: ghcr.io/benphelps/homepage
+  tag: v0.7.0
+
+# Enable RBAC. RBAC is necessary to use Kubernetes integration
+enableRbac: true
+
+serviceAccount:
+  # Specify a different service account name
+  name: homepage
+  # Create service account. Needed when RBAC is enabled.
+  create: true
+
+service:
+  main:
+    ports:
+      http:
+        port: 3000
+        nodePort: 9000
+    type: NodePort
+
+controller:
+  strategy: RollingUpdate
+  rollingUpdate:
+    maxSurge: 25%
+    maxUnavailable: 25%
+
+
+# All the config files for Homepage can be specified under their relevant config block.
+config:
+  # To use an existing ConfigMap uncomment this line and specify the name
+  # useExistingConfigMap: existing-homepage-configmap
+  bookmarks:
+    - Developer:
+        - Gitlab:
+            - abbr: GL
+              href: https://git.lais.huol.ufrn.br/
+
+  services:
+    - Infraestrutura:
+        - Rancher:
+            icon: rancher.png
+            href: https://HOSTNAME_IP.sslip.io/
+            description: Acessar o Rancher
+    - ETL e Data Analysis:
+        - Jupyterhub:
+            icon: jupyter.png
+            href: http://HOSTNAME_IP:8889
+            description: Acessar o Jupyterhub
+    - Banco de Dados:
+        - PGAdmin:
+            icon: pgadmin.png
+            href: http://HOSTNAME_IP:9083
+            description: Acessar o PGAdmin
+    - Registro de Container:
+        - Docker Registry:
+            icon: docker.png
+            href: http://HOSTNAME_IP:10000/v2/_catalog
+            description: Acessar o Docker Registry
+    - Data Visualization:
+        - Apache Superset:
+            href: http://HOSTNAME_IP:8088
+            description: Acessar o Apache Superset
+    - Workflow:
+        - Apache Airflow:
+            href: http://HOSTNAME_IP:8082
+            description: Acessar o Apache Airflow
+
+  widgets:
+    - resources:
+        # change backend to 'kubernetes' to use Kubernetes integration. Requires RBAC.
+        backend: kubernetes
+        expanded: true
+        cpu: true
+        memory: true
+    - search:
+        provider: duckduckgo
+        target: _blank
+    ## Uncomment to enable Kubernetes integration
+    - kubernetes:
+        cluster:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+          label: "cluster"
+        nodes:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+  kubernetes:
+    # change mode to 'cluster' to use RBAC service account
+    mode: cluster
+  docker:
+  settings:
+
+persistence:
+  logs:
+    enabled: true
+    type: emptyDir
+    mountPath: /app/config/logs
+
