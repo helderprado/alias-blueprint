@@ -28,3 +28,9 @@ cluster Secrets, so restrict access to those Secrets.
 
 History cleanup and remote publication are separate steps and must include all
 branches and tags that contain the exposed files or inline credentials.
+
+## License and citation
+
+The blueprint code is licensed under Apache-2.0; see `LICENSE`. Bundled third-party
+components retain their own licenses and notices. Citation metadata for this
+software are provided in `CITATION.cff`.

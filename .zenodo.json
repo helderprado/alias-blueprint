@@ -1,0 +1,69 @@
+{
+  "title": "The ALIAS Final Blueprint: A Replicable Reference of an Open Architecture for Intelligent Healthcare Auditing",
+  "upload_type": "software",
+  "description": "Deployment scripts and configuration for the ALIAS reference architecture for intelligent healthcare auditing.",
+  "creators": [
+    {
+      "name": "Fontes, Raphael Silva"
+    },
+    {
+      "name": "Santos, Helder Prado"
+    },
+    {
+      "name": "Colaço Júnior, Methanias"
+    },
+    {
+      "name": "Silva, Caldeira"
+    },
+    {
+      "name": "Santos, João Paulo Queiroz dos"
+    },
+    {
+      "name": "Pinheiro, Andréa"
+    },
+    {
+      "name": "Lemos, Lemyson"
+    },
+    {
+      "name": "Sousa, Letícia Ainoan Nunes de"
+    },
+    {
+      "name": "Valentim, Janaína"
+    },
+    {
+      "name": "Coutinho, Karilany Dantas"
+    },
+    {
+      "name": "Bonfim, Marilyn"
+    },
+    {
+      "name": "Henriques, Jorge"
+    },
+    {
+      "name": "Gil, Paulo"
+    },
+    {
+      "name": "Machado, Guilherme Medeiros"
+    },
+    {
+      "name": "Valentim, Ricardo"
+    }
+  ],
+  "access_right": "open",
+  "license": "Apache-2.0",
+  "version": "1.0.0",
+  "keywords": [
+    "artificial intelligence",
+    "auditing",
+    "healthcare",
+    "data architecture",
+    "MLOps"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/helderprado/alias-blueprint",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

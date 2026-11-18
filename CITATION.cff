@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+message: "If you use this blueprint, please cite this software using these metadata."
+type: software
+license: Apache-2.0
+version: 1.0.0
+title: "The ALIAS Final Blueprint: A Replicable Reference of an Open Architecture for Intelligent Healthcare Auditing"
+repository-code: "https://github.com/helderprado/alias-blueprint"
+authors:
+  - family-names: "Fontes"
+    given-names: "Raphael Silva"
+  - family-names: "Santos"
+    given-names: "Helder Prado"
+  - family-names: "Colaço Júnior"
+    given-names: "Methanias"
+  - family-names: "Silva"
+    given-names: "Caldeira"
+  - family-names: "Santos"
+    given-names: "João Paulo Queiroz dos"
+  - family-names: "Pinheiro"
+    given-names: "Andréa"
+  - family-names: "Lemos"
+    given-names: "Lemyson"
+  - family-names: "Sousa"
+    given-names: "Letícia Ainoan Nunes de"
+  - family-names: "Valentim"
+    given-names: "Janaína"
+  - family-names: "Coutinho"
+    given-names: "Karilany Dantas"
+  - family-names: "Bonfim"
+    given-names: "Marilyn"
+  - family-names: "Henriques"
+    given-names: "Jorge"
+  - family-names: "Gil"
+    given-names: "Paulo"
+  - family-names: "Machado"
+    given-names: "Guilherme Medeiros"
+  - family-names: "Valentim"
+    given-names: "Ricardo"
+keywords:
+  - artificial intelligence
+  - auditing
+  - healthcare
+  - data architecture
+  - MLOps
