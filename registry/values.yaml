@@ -9,5 +9,4 @@ persistence:
   size: 20Gi
   deleteEnabled: true
   existingClaim: docker-registry-pv-claim
-secrets:
-  htpasswd: admin:$2y$05$RDfDeRZ1qaKInE0CmY0k7OiBc.73C4godWqRVmHi07ALnlBWIO26m
+# Authentication is supplied by deploy.sh from an ignored local file.

@@ -1,2 +1,4 @@
-kubectl create secret docker-registry regcred --docker-server=HOSTNAME_IP:10000 --docker-username=admin --docker-password=registryPass -n jupyterhub
-
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+exec bash "$SCRIPT_DIR/../registry/create-pull-secret.sh" jupyterhub
