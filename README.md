@@ -1,5 +1,15 @@
 # alias-blueprint
 
+## Installation
+
+Run `bash install-k3s.sh` from any directory. The script pins K3s to
+`v1.34.13+k3s1` and loads this repository's `k3s-config.yaml`.
+This version is a reproducibility baseline; the complete stack still needs
+validation on a fresh cluster.
+
+Run `bash airflow/deploy.sh` to install the bundled Airflow chart using its
+repository-local values file.
+
 ## Registry credentials
 
 Previously committed credentials must be treated as compromised. Removing them
