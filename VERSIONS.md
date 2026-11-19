@@ -26,10 +26,13 @@ Unknown values are retained explicitly; no installation was performed.
 ## Configuration status
 
 `.env.example` is a template only. The current scripts do not automatically
-load `.env`. `install-k3s.sh` sets its version and configuration path directly;
+load `.env`. `install-k3s.sh` accepts exported `K3S_VERSION` (or
+`INSTALL_K3S_VERSION`) and `K3S_CONFIG`, with a fixed version and the
+repository-local configuration as defaults;
 registry scripts request credentials interactively. The README template's
 statements about environment loading and validation are not implemented by
-these scripts. No script behavior was changed as part of README replacement.
+these scripts as a whole. The K3s installer validates the release format,
+configuration file, and required commands before contacting the installer.
 
 ## Third-party licenses
 
