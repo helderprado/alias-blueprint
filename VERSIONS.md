@@ -10,8 +10,8 @@ Unknown values are retained explicitly; no installation was performed.
 | Helm client | Not pinned; installer accepts `--version` | `get_helm.sh` |
 | Rancher | Chart version not pinned | `install-rancher.sh` |
 | cert-manager CRDs | `v1.13.3`; chart version not pinned | `install-rancher.sh` |
-| Airflow bundled chart | `1.16.0-dev`, app version `2.10.4` | `airflow/repo/airflow-1.16.0-dev.tgz`, `airflow/Chart.yaml` inside archive |
-| Airflow custom image base | `2.6.2` | `airflow/image/Dockerfile`; differs from bundled chart app version |
+| Airflow deployment chart | Stable release `1.16.0` by default; override with `AIRFLOW_CHART_VERSION` | `airflow/deploy.sh`, official repository `https://airflow.apache.org`; legacy bundled chart is unused |
+| Airflow custom image base | `2.6.2` | `airflow/image/Dockerfile`; custom base; validate compatibility with the selected chart |
 | JupyterHub custom hub base | `3.2.1` | `jupyterhub/images/hub/Dockerfile` |
 | Spark and Spark Operator | Chart versions not confirmed | `spark/`, `spark-operator/` |
 | MLflow | Chart version not confirmed | `mlflow/` |

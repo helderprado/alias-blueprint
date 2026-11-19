@@ -1,2 +1,5 @@
-kubectl delete -f persistent-volume.yaml
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+kubectl delete -f "$SCRIPT_DIR/persistent-volume.yaml"
 kubectl delete namespace jupyterhub

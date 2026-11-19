@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-helm install airflow "$SCRIPT_DIR/repo/airflow-1.16.0-dev.tgz" --namespace airflow --values "$SCRIPT_DIR/values.yaml"
+
+AIRFLOW_CHART_VERSION="${AIRFLOW_CHART_VERSION:-1.16.0}"
+AIRFLOW_VALUES="${AIRFLOW_VALUES:-$SCRIPT_DIR/values.yaml}"
+if [[ ! "$AIRFLOW_CHART_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo 'AIRFLOW_CHART_VERSION must name an exact stable release, for example 1.16.0.' >&2
+    exit 1
+fi
+if [[ ! -f "$AIRFLOW_VALUES" || ! -r "$AIRFLOW_VALUES" || ! -s "$AIRFLOW_VALUES" ]]; then
+    echo "AIRFLOW_VALUES must point to a readable, nonempty values file: $AIRFLOW_VALUES" >&2
+    exit 1
+fi
+if ! command -v helm >/dev/null 2>&1; then
+    echo 'Required command not found: helm' >&2
+    exit 1
+fi
+helm install airflow airflow --repo https://airflow.apache.org \
+    --version "$AIRFLOW_CHART_VERSION" --namespace airflow --values "$AIRFLOW_VALUES"
