@@ -145,7 +145,41 @@ archives and Helm; see `VERSIONS.md`. After deployment, inspect nodes and pods
 with `kubectl get nodes` and `kubectl -n NAMESPACE get pods`, then follow each
 component's README for functional checks.
 
-## 8. Reuse and license
+## 8. Replication
+
+**Prerequisites.** Start with the hosts, operating system, capacity and network
+access listed in [Requirements](#2-requirements). Install Helm and the Python
+requirements in `scripts/requirements.txt` for the deployment tooling; use the
+versions recorded in [VERSIONS.md](VERSIONS.md). Prepare a working kubeconfig
+for the target cluster and the external databases, object storage, identity
+services and persistent storage required by the selected components. Configure
+their runtime variables as described in [Required configuration](#3-required-configuration)
+and [scripts/README.md](scripts/README.md).
+
+**Bootstrap and dependencies.** Follow [Bootstrap order](#4-bootstrap-order):
+initialize K3s, configure client access, install Helm, optionally install Rancher,
+prepare any required registry pull Secrets, then deploy the selected components.
+Before each component's `deploy.sh`, satisfy its dependencies in the
+[component inventory](#1-what-this-repository-contains), including namespaces,
+service accounts, RBAC and PVCs where required. If using GlusterFS, provision it
+before its storage consumers. If using this repository's OpenSearch for
+OpenMetadata, deploy OpenSearch first. Configure optional integrations only after
+both endpoints are available. Finish with [Verification](#7-verification) and
+the functional checks in each selected component's README.
+
+**Duration.** No end-to-end replication duration has been measured for this
+repository; the existing validation covers local checks and chart rendering,
+as detailed in [VERSIONS.md](VERSIONS.md#configuration-and-verification-limits).
+For a replication run, record infrastructure preparation, cluster bootstrap,
+component deployment and functional verification separately, plus total elapsed
+time. Measure from the start of preparation through completion of the selected
+functional checks, recording the selected components, host resources, network
+conditions and whether charts and images were already cached. For an individual
+deployment, Bash's `time bash mlflow/deploy.sh` reports elapsed time, but readiness
+and functional verification must also be timed before reporting replication as
+complete. Helm deployment timeouts are limits, not measured durations.
+
+## 9. Reuse and license
 
 Code is released under Apache 2.0. Third-party components keep their own
 licenses; see `VERSIONS.md` for the license inventory status.
