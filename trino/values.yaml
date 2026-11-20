@@ -1,0 +1,57 @@
+fullnameOverride: trino
+service:
+  type: ClusterIP
+server:
+  workers: 1
+  config:
+    authenticationType: PASSWORD
+    https:
+      enabled: true
+      port: 8443
+      keystore:
+        path: /etc/trino/tls/server-bundle.pem
+    query:
+      maxMemory: 1GB
+serviceAccount:
+  create: true
+auth:
+  passwordAuthSecret: trino-auth
+envFrom:
+  - secretRef:
+      name: trino-runtime
+secretMounts:
+  - name: tls
+    secretName: trino-tls
+    path: /etc/trino/tls
+additionalConfigProperties:
+  - internal-communication.shared-secret=${ENV:TRINO_SHARED_SECRET}
+coordinator:
+  jvm:
+    maxHeapSize: 2G
+  config:
+    query:
+      maxMemoryPerNode: 512MB
+    memory:
+      heapHeadroomPerNode: 512MB
+  resources:
+    requests:
+      cpu: 500m
+      memory: 3Gi
+    limits:
+      cpu: "2"
+      memory: 3Gi
+worker:
+  jvm:
+    maxHeapSize: 2G
+  config:
+    query:
+      maxMemoryPerNode: 512MB
+    memory:
+      heapHeadroomPerNode: 512MB
+  resources:
+    requests:
+      cpu: 500m
+      memory: 3Gi
+    limits:
+      cpu: "2"
+      memory: 3Gi

@@ -10,12 +10,13 @@ a file, exported variables alone are sufficient.
 
 Run the relevant script with Bash, for example `bash jupyterhub/deploy.sh`.
 Deployment scripts validate all required inputs before contacting Kubernetes.
-External databases, users and S3 buckets must already exist. Airflow, MLflow, OpenSearch and
-OpenMetadata create their namespaces after validation; other component namespaces
+External databases, users and S3 buckets must already exist. Airflow, MLflow, OpenSearch, OpenMetadata, Trino and Pinot create their namespaces after validation; other component namespaces
 must already exist.
 
 | Entry script | Runtime Secrets | Consumer |
 |---|---|---|
+| `trino/deploy.sh` | `trino-auth`, `trino-runtime`, `trino-tls`, optional `trino-catalogs` | SQL authentication, TLS and source configuration |
+| `pinot/deploy.sh` | None in this private profile | Namespace policy plus persistent Pinot/ZooKeeper |
 | `jupyterhub/deploy.sh` | `jupyterhub-runtime` | Hub Secret references for encryption and dummy authentication |
 | `opensearch/deploy.sh` | `opensearch-security`, `opensearch-tls` | Authenticated persistent search backend |
 | `openmetadata/deploy.sh` | `openmetadata-runtime`, `openmetadata-jwt` | Server credential references, OIDC, Fernet and JWT volume |
@@ -70,3 +71,6 @@ OpenSearch and Airflow are independently deployable services. Their component
 set its `OPENMETADATA_SEARCH_*` credentials and truststore explicitly. It does not
 provision that service, and pipeline integration with Airflow stays disabled by
 default. See each component's README.
+
+Trino and Pinot are independent query services. Their optional connection and
+access profiles are documented in `../trino/README.md` and `../pinot/README.md`.

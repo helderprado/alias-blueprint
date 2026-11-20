@@ -50,11 +50,11 @@ class VersionTests(unittest.TestCase):
                 archive = Path(os.environ['ALIAS_CHARTS_DIR']) / (name + '.tgz')
                 import hashlib
                 self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(), chart['digest'])
-                if name == 'openmetadata':
+                if name in ('openmetadata', 'trino'):
                     temporary = tempfile.TemporaryDirectory(prefix='alias-om-chart-')
                     self.addCleanup(temporary.cleanup)
                     patched = Path(temporary.name) / 'pinned.tgz'
-                    subprocess.run([sys.executable, str(ROOT / 'scripts/prepare-openmetadata-chart.py'),
+                    subprocess.run([sys.executable, str(ROOT / 'scripts' / ('prepare-' + name + '-chart.py')),
                                     str(archive), str(patched)], check=True)
                     archive = patched
                 args = [os.environ['ALIAS_HELM'], 'template', name, str(archive), '--namespace', name,

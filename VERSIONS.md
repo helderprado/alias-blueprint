@@ -33,6 +33,8 @@ were downloaded to temporary storage and checked against index SHA-256 values.
 
 | Component | Chart release | Chart appVersion | Official index |
 |---|---|---|---|
+| trino | `1.45.0` | `484` | [index](https://trinodb.github.io/charts/index.yaml) |
+| pinot | `1.0.0` | `1.0.0` | [index](https://raw.githubusercontent.com/apache/pinot/master/helm/index.yaml) |
 | opensearch | `2.32.0` | `2.19.1` | [index](https://opensearch-project.github.io/helm-charts/index.yaml) |
 | openmetadata | `2.0.9` | `2.0.9` | [index](https://helm.open-metadata.org/index.yaml) |
 | airflow | `1.16.0` | `2.10.5` | [index](https://airflow.apache.org/index.yaml) |
@@ -62,6 +64,9 @@ a tag. Digests do not imply vulnerability, compatibility, or license review.
 
 | Source reference | Immutable reference |
 |---|---|
+| `trinodb/trino:484` | `trinodb/trino@sha256:2704eb53935af5e582d63d6033e9bf99d20c325e9b0e30b1016ef59a4773979f` |
+| `apachepinot/pinot:1.4.0` | `apachepinot/pinot@sha256:c7372d4099af6756a17128ea95d91fe415080dfe1138b4b00bf61feea26eff84` |
+| `zookeeper:3.9.3` | `zookeeper@sha256:9980cafbff742c15b339811ae829faa61c69154606ec504223560da9d31acd43` |
 | `opensearchproject/opensearch:2.19.1` | `opensearchproject/opensearch@sha256:72fe2fc84be8295906b8efca020b46c58ed45c8da60cd9b8b49e1991e38e89a4` |
 | `docker.getcollate.io/openmetadata/server:2.0.9` | `docker.getcollate.io/openmetadata/server@sha256:8575ad1b61866f76075f096c40ec4e9ee19339dcab50169adec9b69bec380f98` |
 | `apache/airflow:2.10.5-python3.11` | `apache/airflow@sha256:b16e19f925ae0dcabaa2271b37212891ed68bf74e26c2db61f46dddd7d502937` |
@@ -186,3 +191,22 @@ service. Airflow consumes its own `AIRFLOW_*` settings, creates its namespace an
 starts without a private DAG repository or pre-existing DAG claim. DAG Git delivery
 is optional and requires an explicit commit. This configuration change does not
 change any pinned application, chart or image version.
+
+## Independent query services
+
+Trino uses official chart `1.45.0` and image `484`. Pinot's official chart reports
+`appVersion: 1.0.0` but defaults to a nightly image; this deployment explicitly
+selects and locks Pinot `1.4.0` and ZooKeeper `3.9.3`. Trino 484's documented Pinot
+connector requires Pinot 1.1.0 or higher. The example connection is optional and
+uses broker-only queries. Chart hashes and image digests were checked against
+publisher metadata. No running queries or cross-service ingestion were measured.
+
+Trino has a local password/TLS bootstrap. Pinot uses a private single-tenant HTTP
+profile restricted by NetworkPolicy, not application authentication/TLS. Neither
+service requires OpenMetadata or another query service to deploy. See their own
+README and `.env.example` files for access and persistence limits.
+
+Trino deployment verifies the official chart SHA-256 and excludes only the
+upstream CI connection-test template, whose demo credentials/certificate names
+do not match this authenticated profile. Application templates are unchanged.
+See `scripts/prepare-trino-chart.py`; the operator SQL smoke query is in its README.

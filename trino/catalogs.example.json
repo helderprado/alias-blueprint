@@ -1,0 +1,4 @@
+{
+  "tpch": "connector.name=tpch\n",
+  "pinot": "connector.name=pinot\npinot.controller-urls=http://pinot-controller.pinot.svc.cluster.local:9000\npinot.broker-url=pinot-broker.pinot.svc.cluster.local:8099\npinot.forbid-segment-queries=true\n"
+}

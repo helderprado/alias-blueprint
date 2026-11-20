@@ -113,6 +113,26 @@
         "https://github.com/opensearch-project/helm-charts/releases/download/opensearch-2.32.0/opensearch-2.32.0.tgz"
       ],
       "digest": "465ba4eb5811392804a29149a2abba0697c2a451d5946e43a99c0d86b1ad7f54"
+    },
+    "trino": {
+      "index": "https://trinodb.github.io/charts/index.yaml",
+      "chart": "trino",
+      "version": "1.45.0",
+      "appVersion": "484",
+      "urls": [
+        "https://github.com/trinodb/charts/releases/download/trino-1.45.0/trino-1.45.0.tgz"
+      ],
+      "digest": "44d918d371fd68bded77725cf9bb1f85e6dec595d36ac156a1f42b135641f830"
+    },
+    "pinot": {
+      "index": "https://raw.githubusercontent.com/apache/pinot/master/helm/index.yaml",
+      "chart": "pinot",
+      "version": "1.0.0",
+      "appVersion": "1.0.0",
+      "urls": [
+        "pinot-1.0.0.tgz"
+      ],
+      "digest": "2d262e0d298cdc3969f2cb3aa82de1d932740b47f62e539922af98b76c717656"
     }
   },
   "images": {
@@ -151,7 +171,10 @@
     "spark:3.5.0-scala2.12-java17-python3-ubuntu": "spark@sha256:edc304196cbd7619933658d6e01b082b12bcef45ba96223d4a56584c0b4b1fcf",
     "docker.io/bitnami/redis:7.0.10-debian-11-r4": "bitnamilegacy/redis@sha256:224a79826b42869bdc72a70933efd840c5a5f10a70caafca68e57be6901e36fb",
     "docker.getcollate.io/openmetadata/server:2.0.9": "docker.getcollate.io/openmetadata/server@sha256:8575ad1b61866f76075f096c40ec4e9ee19339dcab50169adec9b69bec380f98",
-    "opensearchproject/opensearch:2.19.1": "opensearchproject/opensearch@sha256:72fe2fc84be8295906b8efca020b46c58ed45c8da60cd9b8b49e1991e38e89a4"
+    "opensearchproject/opensearch:2.19.1": "opensearchproject/opensearch@sha256:72fe2fc84be8295906b8efca020b46c58ed45c8da60cd9b8b49e1991e38e89a4",
+    "trinodb/trino:484": "trinodb/trino@sha256:2704eb53935af5e582d63d6033e9bf99d20c325e9b0e30b1016ef59a4773979f",
+    "apachepinot/pinot:1.4.0": "apachepinot/pinot@sha256:c7372d4099af6756a17128ea95d91fe415080dfe1138b4b00bf61feea26eff84",
+    "zookeeper:3.9.3": "zookeeper@sha256:9980cafbff742c15b339811ae829faa61c69154606ec504223560da9d31acd43"
   },
   "host_baseline": {
     "distribution": "Ubuntu",

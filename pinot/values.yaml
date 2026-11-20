@@ -1,0 +1,74 @@
+cluster:
+  name: pinot
+image:
+  pullPolicy: IfNotPresent
+pinotAuth:
+  enabled: false
+controller:
+  replicaCount: 1
+  persistence:
+    enabled: true
+    size: 5Gi
+  service:
+    type: ClusterIP
+  external:
+    enabled: false
+  jvmOpts: -Xms256M -Xmx1G -XX:+UseG1GC -Djute.maxbuffer=4000000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+broker:
+  replicaCount: 1
+  persistence:
+    enabled: false
+  service:
+    type: ClusterIP
+  external:
+    enabled: false
+  jvmOpts: -Xms256M -Xmx1G -XX:+UseG1GC -Djute.maxbuffer=4000000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+server:
+  replicaCount: 1
+  persistence:
+    enabled: true
+    size: 20Gi
+  jvmOpts: -Xms512M -Xmx2G -XX:+UseG1GC -Djute.maxbuffer=4000000
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+minion:
+  enabled: false
+multistageQuery:
+  enabled: false
+zookeeper:
+  enabled: true
+  replicaCount: 1
+  heapSize: "512"
+  persistence:
+    enabled: true
+    size: 8Gi
+    data:
+      size: 8Gi
+    datalog:
+      size: 8Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 1Gi

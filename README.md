@@ -27,13 +27,13 @@ paper. Each layer of the paper's Table 4 maps to a path below.
 | 5 | Workflow orchestration | Airflow | `airflow/` | helm |
 | 6 | Model lifecycle | MLflow | `mlflow/` | helm |
 | 7 | Catalog and governance | OpenMetadata | `openmetadata/` | helm |
-| 8 | Query | ‹preencher› | ‹preencher› | ‹...› |
+| 8 | Query | Trino, Apache Pinot | `trino/`, `pinot/` | helm |
 | 9 | Visualization | Superset | `superset/` | helm |
 
 Supporting directories, not part of the nine layers: `registry/`
 (private image registry), `pgadmin/` (database administration),
 `homepage/` (landing page), `docker-images/` (image build recipes),
-`opensearch/` (persistent search backend for OpenMetadata).
+`opensearch/` (independent persistent search service).
 
 ## 2. Requirements
 

@@ -1,0 +1,12 @@
+{
+  "image": {
+    "repository": "apachepinot/pinot",
+    "tag": "1.4.0@sha256:c7372d4099af6756a17128ea95d91fe415080dfe1138b4b00bf61feea26eff84"
+  },
+  "zookeeper": {
+    "image": {
+      "repository": "zookeeper",
+      "tag": "3.9.3@sha256:9980cafbff742c15b339811ae829faa61c69154606ec504223560da9d31acd43"
+    }
+  }
+}

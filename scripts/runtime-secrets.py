@@ -22,11 +22,83 @@ def ref(secret, key, name=None):
     return dict(name=name, **value) if name else value
 
 
+def query_network_policy(component):
+    import re
+    names = [n.strip() for n in os.environ.get(component.upper() + '_ALLOWED_NAMESPACES', '').split(',') if n.strip()]
+    if any(len(n) > 63 or not re.fullmatch(r'[a-z0-9]([-a-z0-9]*[a-z0-9])?', n) for n in names):
+        raise ValueError('Allowed namespaces must be comma-separated DNS labels')
+    ingress = [{'from': [{'podSelector': {}}]}]
+    if names:
+        ingress.append({'from': [{'namespaceSelector': {'matchLabels': {'kubernetes.io/metadata.name': name}}}
+                                 for name in sorted(set(names))],
+                        'ports': [{'protocol': 'TCP', 'port': port} for port in
+                                  ([8443] if component == 'trino' else [9000, 8099])]})
+    return {'apiVersion': 'networking.k8s.io/v1', 'kind': 'NetworkPolicy',
+            'metadata': {'name': component + '-client-access', 'namespace': component},
+            'spec': {'podSelector': {}, 'policyTypes': ['Ingress'], 'ingress': ingress}}
+
+
 def build(component):
     secrets = []
     def secret(name, data):
         secrets.append({'apiVersion': 'v1', 'kind': 'Secret', 'type': 'Opaque',
                         'metadata': {'name': name, 'namespace': component}, 'stringData': data})
+    if component == 'trino':
+        import re
+        from trino_security import material
+        shared = required('TRINO_SHARED_SECRET')
+        if not re.fullmatch(r'[A-Za-z0-9+/=_-]{32,}', shared):
+            raise ValueError('TRINO_SHARED_SECRET must contain at least 32 base64/hex-safe characters')
+        directory = material()
+        query_network_policy(component)  # Validate before any namespace or Secret write.
+        workers = int(os.environ.get('TRINO_WORKERS') or '1')
+        if not 1 <= workers <= 100:
+            raise ValueError('TRINO_WORKERS must be in 1..100')
+        secret('trino-auth', {'password.db': (directory / 'password.db').read_text()})
+        secret('trino-runtime', {'TRINO_SHARED_SECRET': shared})
+        secrets.append({'apiVersion': 'v1', 'kind': 'Secret', 'type': 'Opaque',
+            'metadata': {'name': 'trino-tls', 'namespace': component},
+            'data': {name: base64.b64encode((directory / name).read_bytes()).decode()
+                     for name in ('server-bundle.pem', 'ca.pem')}})
+        values = {'server': {'workers': workers}}
+        catalog_file = os.environ.get('TRINO_CATALOGS_FILE')
+        if catalog_file:
+            root = Path(__file__).resolve().parents[1]
+            path = Path(catalog_file).expanduser()
+            if not path.is_absolute():
+                path = root / path
+            catalogs = json.loads(path.read_text())
+            if not isinstance(catalogs, dict) or not catalogs:
+                raise ValueError('TRINO_CATALOGS_FILE must contain a nonempty JSON object of catalog properties')
+            data = {}
+            for name, properties in catalogs.items():
+                if not re.fullmatch(r'[a-z][a-z0-9_-]{0,62}', name) or not isinstance(properties, str) or 'connector.name=' not in properties:
+                    raise ValueError('Each catalog needs a valid name and a connector.name property')
+                data[name + '.properties'] = properties
+            secret('trino-catalogs', data)
+            values['additionalConfigProperties'] = ['internal-communication.shared-secret=${ENV:TRINO_SHARED_SECRET}',
+                                                   'catalog.config-dir=/etc/trino/secret-catalogs']
+            values['secretMounts'] = [
+                {'name': 'tls', 'secretName': 'trino-tls', 'path': '/etc/trino/tls'},
+                {'name': 'catalogs', 'secretName': 'trino-catalogs', 'path': '/etc/trino/secret-catalogs'}]
+        return secrets, values
+    if component == 'pinot':
+        import re
+        query_network_policy(component)
+        cluster = os.environ.get('PINOT_CLUSTER_NAME') or 'pinot'
+        if not re.fullmatch(r'[a-z0-9]([-a-z0-9]*[a-z0-9])?', cluster):
+            raise ValueError('PINOT_CLUSTER_NAME must be a DNS label')
+        values = {'cluster': {'name': cluster}}
+        url = os.environ.get('PINOT_ZOOKEEPER_URL') or ''
+        if url:
+            if ':' not in url or any(char.isspace() for char in url) or '@' in url:
+                raise ValueError('PINOT_ZOOKEEPER_URL must be a ZooKeeper connection string without embedded credentials')
+            values['zookeeper'] = {'enabled': False, 'urlOverride': url}
+        storage = os.environ.get('PINOT_STORAGE_CLASS') or ''
+        if storage:
+            for role in ('controller', 'server', 'zookeeper'):
+                values.setdefault(role, {})['persistence'] = {'storageClass': storage}
+        return secrets, values
     if component == 'jupyterhub':
         crypt = required('JUPYTERHUB_CRYPT_KEY')
         if len(crypt) != 64 or any(c not in '0123456789abcdefABCDEF' for c in crypt):
@@ -190,9 +262,15 @@ def build(component):
 def main():
     component, output = sys.argv[1:]
     secrets, values = build(component)  # Validate everything before any cluster request.
-    if component in ('mlflow', 'openmetadata', 'opensearch', 'airflow'):
+    if component in ('mlflow', 'openmetadata', 'opensearch', 'airflow', 'trino', 'pinot'):
         namespace = {'apiVersion': 'v1', 'kind': 'Namespace', 'metadata': {'name': component}}
         subprocess.run(['kubectl', 'apply', '-f', '-'], input=json.dumps(namespace), text=True, check=True)
+    if component in ('trino', 'pinot'):
+        subprocess.run(['kubectl', 'apply', '-f', '-'], input=json.dumps(query_network_policy(component)), text=True, check=True)
+    if not secrets:
+        with open(output, 'w') as stream:
+            json.dump(values, stream)
+        return
     # External Secrets are outside Helm revision history. Do not change them during
     # an application upgrade: an automatic Helm rollback could not undo that change.
     result = subprocess.run(['kubectl', 'get', 'secret', *[s['metadata']['name'] for s in secrets],
