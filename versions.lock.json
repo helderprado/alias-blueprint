@@ -93,6 +93,26 @@
         "docker-registry-2.2.3.tgz"
       ],
       "digest": "1dd05abfbde9c26de71f4074ec44b26f3008479c2b1714079739c4efef12fc37"
+    },
+    "openmetadata": {
+      "index": "https://helm.open-metadata.org/index.yaml",
+      "chart": "openmetadata",
+      "version": "2.0.9",
+      "appVersion": "2.0.9",
+      "urls": [
+        "https://github.com/open-metadata/openmetadata-helm-charts/releases/download/openmetadata-2.0.9/openmetadata-2.0.9.tgz"
+      ],
+      "digest": "b1c37e8f3b9a1d498c72442b08197a99385663529ea8831b522bf9cdf7988046"
+    },
+    "opensearch": {
+      "index": "https://opensearch-project.github.io/helm-charts/index.yaml",
+      "chart": "opensearch",
+      "version": "2.32.0",
+      "appVersion": "2.19.1",
+      "urls": [
+        "https://github.com/opensearch-project/helm-charts/releases/download/opensearch-2.32.0/opensearch-2.32.0.tgz"
+      ],
+      "digest": "465ba4eb5811392804a29149a2abba0697c2a451d5946e43a99c0d86b1ad7f54"
     }
   },
   "images": {
@@ -129,7 +149,9 @@
     "registry.k8s.io/pause:3.9": "registry.k8s.io/pause@sha256:7031c1b283388d2c2e09b57badb803c05ebed362dc88d84b480cc47f72a21097",
     "quay.io/jupyterhub/k8s-hub:3.2.1": "quay.io/jupyterhub/k8s-hub@sha256:2528c6e575870c00fb03045520f7b3786a0a016889413769bdd33eec98826bf1",
     "spark:3.5.0-scala2.12-java17-python3-ubuntu": "spark@sha256:edc304196cbd7619933658d6e01b082b12bcef45ba96223d4a56584c0b4b1fcf",
-    "docker.io/bitnami/redis:7.0.10-debian-11-r4": "bitnamilegacy/redis@sha256:224a79826b42869bdc72a70933efd840c5a5f10a70caafca68e57be6901e36fb"
+    "docker.io/bitnami/redis:7.0.10-debian-11-r4": "bitnamilegacy/redis@sha256:224a79826b42869bdc72a70933efd840c5a5f10a70caafca68e57be6901e36fb",
+    "docker.getcollate.io/openmetadata/server:2.0.9": "docker.getcollate.io/openmetadata/server@sha256:8575ad1b61866f76075f096c40ec4e9ee19339dcab50169adec9b69bec380f98",
+    "opensearchproject/opensearch:2.19.1": "opensearchproject/opensearch@sha256:72fe2fc84be8295906b8efca020b46c58ed45c8da60cd9b8b49e1991e38e89a4"
   },
   "host_baseline": {
     "distribution": "Ubuntu",

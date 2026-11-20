@@ -1,0 +1,60 @@
+clusterName: alias-catalog-search
+fullnameOverride: opensearch
+masterService: opensearch
+majorVersion: "2"
+singleNode: true
+replicas: 1
+roles:
+  - master
+  - ingest
+  - data
+opensearchJavaOpts: -Xms1g -Xmx1g
+persistence:
+  enabled: true
+  size: 20Gi
+service:
+  type: ClusterIP
+protocol: https
+rbac:
+  create: true
+  automountServiceAccountToken: false
+sysctlInit:
+  enabled: false
+extraEnvs:
+  - name: DISABLE_INSTALL_DEMO_CONFIG
+    value: "true"
+securityConfig:
+  enabled: true
+  configSecret: opensearch-security
+  internalUsersSecret: opensearch-security
+  rolesSecret: opensearch-security
+  rolesMappingSecret: opensearch-security
+secretMounts:
+  - name: node-tls
+    secretName: opensearch-tls
+    path: /usr/share/opensearch/config/tls
+    defaultMode: 288
+config:
+  opensearch.yml: |
+    cluster.name: alias-catalog-search
+    network.host: 0.0.0.0
+    plugins.security.ssl.transport.pemcert_filepath: tls/node.pem
+    plugins.security.ssl.transport.pemkey_filepath: tls/node-key.pem
+    plugins.security.ssl.transport.pemtrustedcas_filepath: tls/ca.pem
+    plugins.security.ssl.transport.enforce_hostname_verification: true
+    plugins.security.ssl.http.enabled: true
+    plugins.security.ssl.http.pemcert_filepath: tls/node.pem
+    plugins.security.ssl.http.pemkey_filepath: tls/node-key.pem
+    plugins.security.ssl.http.pemtrustedcas_filepath: tls/ca.pem
+    plugins.security.nodes_dn:
+      - CN=opensearch-node
+    plugins.security.allow_default_init_securityindex: true
+    plugins.security.restapi.roles_enabled:
+      - bootstrap_admin
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: "2"
+    memory: 3Gi

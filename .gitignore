@@ -3,3 +3,5 @@ registry/registry-creds/
 .env
 .env.local
 __pycache__/
+openmetadata/runtime-creds/
+opensearch/runtime-creds/

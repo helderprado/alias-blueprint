@@ -22,7 +22,7 @@ reviewing the corresponding image and dependency locks as well.
 | K3s | `v1.34.13+k3s1`, default fixed release | `install-k3s.sh` |
 | kubectl | K3s-bundled Kubernetes client, tied to the selected K3s distribution; no standalone client installer in this repo | `install-k3s.sh`, `kube-config.sh` |
 | Helm | `v3.17.3`; installer accepts only an exact stable release, never an implicit newest release | `get_helm.sh` |
-| YAML tool dependency | `PyYAML==6.0.3` | `scripts/requirements.txt` |
+| Tool dependencies | `PyYAML==6.0.3`, `bcrypt==4.3.0` | `scripts/requirements.txt` |
 | Python for standalone tools / ETL | `3.11.11`; ETL base is the verified digest of `python:3.11.11-slim-bookworm` | `versions.lock.json`, `docker-images/etl-base-image/Dockerfile` |
 | Container OS / bundled interpreters | Inherited from immutable image digests below. Labels such as Ubuntu or bookworm are not evidence of the historical host or kernel. Interpreter patch versions not exposed by manifests are not invented. | Dockerfiles and image lock |
 
@@ -33,6 +33,8 @@ were downloaded to temporary storage and checked against index SHA-256 values.
 
 | Component | Chart release | Chart appVersion | Official index |
 |---|---|---|---|
+| opensearch | `2.32.0` | `2.19.1` | [index](https://opensearch-project.github.io/helm-charts/index.yaml) |
+| openmetadata | `2.0.9` | `2.0.9` | [index](https://helm.open-metadata.org/index.yaml) |
 | airflow | `1.16.0` | `2.10.5` | [index](https://airflow.apache.org/index.yaml) |
 | cert-manager | `v1.13.3` | `v1.13.3` | [index](https://charts.jetstack.io/index.yaml) |
 | homepage | `2.1.0` | `v1.2.0` | [index](https://jameswynn.github.io/helm-charts/index.yaml) |
@@ -60,6 +62,8 @@ a tag. Digests do not imply vulnerability, compatibility, or license review.
 
 | Source reference | Immutable reference |
 |---|---|
+| `opensearchproject/opensearch:2.19.1` | `opensearchproject/opensearch@sha256:72fe2fc84be8295906b8efca020b46c58ed45c8da60cd9b8b49e1991e38e89a4` |
+| `docker.getcollate.io/openmetadata/server:2.0.9` | `docker.getcollate.io/openmetadata/server@sha256:8575ad1b61866f76075f096c40ec4e9ee19339dcab50169adec9b69bec380f98` |
 | `apache/airflow:2.10.5-python3.11` | `apache/airflow@sha256:b16e19f925ae0dcabaa2271b37212891ed68bf74e26c2db61f46dddd7d502937` |
 | `apache/superset:4.1.2` | `apache/superset@sha256:15e110b8533d3cb6a0d529512ea71252b0ac62e3f72b1f7a5000f1361822ac26` |
 | `apache/superset:dockerize` | `apache/superset@sha256:afe59523a6c8774c3b16d0f44146b2e52f327a7d26a47b4cc63b904fcdedf057` |
@@ -147,3 +151,28 @@ set of manifests and needs its own lock review.
 The blueprint is Apache-2.0. Third-party components retain their licenses. A full
 component-by-component license inventory has not been verified by this version
 inventory and remains pending; image pins are not a legal license inventory.
+
+## OpenMetadata addition
+
+The catalog server uses official chart/application `2.0.9` and a committed image
+digest, added after the original baseline. Its chart package SHA-256 was checked.
+The image digest was obtained from public manifest metadata after an anonymous
+pull limit; the full image was not downloaded or run. PostgreSQL, OpenSearch and
+OIDC are external prerequisites, not silently provisioned dependencies. Ingestion
+pipeline deployment is disabled; adding MLflow catalog ingestion requires its
+explicit connector workflow as described in `openmetadata/README.md`.
+
+OpenMetadata's upstream Helm test contains an unversioned busybox image. Its deploy
+verifies the downloaded original chart hash, then patches only that test image to
+the existing busybox digest in `versions.lock.json`. The temporary chart is used
+for install/upgrade and discarded on exit; no vendored default credentials are
+committed. See `scripts/prepare-openmetadata-chart.py`.
+
+## OpenSearch backend addition
+
+The catalog search backend now has chart `2.32.0`, server `2.19.1`, immutable server
+and busybox init-image pins, a persistent single-node footprint and explicit TLS
+and internal-account bootstrap. The official chart package SHA-256 was checked;
+the server digest was read from its manifest metadata without pulling/running it.
+See `opensearch/README.md`. This is a new deployment component, not a measurement
+of the original study environment.

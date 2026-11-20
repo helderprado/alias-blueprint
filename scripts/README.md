@@ -10,11 +10,15 @@ a file, exported variables alone are sufficient.
 
 Run the relevant script with Bash, for example `bash jupyterhub/deploy.sh`.
 Deployment scripts validate all required inputs before contacting Kubernetes.
-Namespaces, external databases, users and S3 buckets must already exist.
+External databases, users and S3 buckets must already exist. MLflow, OpenSearch and
+OpenMetadata create their namespaces after validation; other component namespaces
+must already exist.
 
 | Entry script | Runtime Secrets | Consumer |
 |---|---|---|
 | `jupyterhub/deploy.sh` | `jupyterhub-runtime` | Hub Secret references for encryption and dummy authentication |
+| `opensearch/deploy.sh` | `opensearch-security`, `opensearch-tls` | Authenticated persistent search backend |
+| `openmetadata/deploy.sh` | `openmetadata-runtime`, `openmetadata-jwt` | Server credential references, OIDC, Fernet and JWT volume |
 | `mlflow/deploy.sh` | `mlflow-runtime` | Chart external database and S3 credential references |
 | `superset/deploy.sh` | `superset-runtime` | Explicit pod environment references and Redis dependency |
 | `airflow/deploy.sh` | `airflow-fernet`, `airflow-webserver`, `airflow-metadata` | Official chart existing-Secret options |
@@ -57,3 +61,8 @@ existing pod hook uses the built-in asynchronous Kubernetes client.
 
 See `UPGRADES.md` for the release procedure, atomic Helm deployment and the
 limits of rollback for databases, CRDs and external Secrets.
+
+For catalog deployment and MLflow metadata ingestion setup, see `../openmetadata/README.md`.
+
+For the local search backend, deploy `opensearch/` before `openmetadata/`. The
+shared search account and private CA truststore are configured in `.env.example`.

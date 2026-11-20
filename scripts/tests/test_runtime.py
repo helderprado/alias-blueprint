@@ -98,7 +98,8 @@ with open(os.environ['TEST_LOG'],'a') as f: f.write(json.dumps(record)+'\\n')
                                         env=env, text=True, capture_output=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 records = [json.loads(l) for l in log.read_text().splitlines()]
-                self.assertEqual([r['command'] for r in records], ['kubectl', 'kubectl', 'helm'])
+                self.assertEqual([r['command'] for r in records],
+                                 (['kubectl'] if component == 'mlflow' else []) + ['kubectl', 'kubectl', 'helm'])
                 self.assertFalse(Path(records[-1]['override_path']).exists())
                 self.assertIn('--atomic', records[-1]['args'])
                 for k, value in self.env.items():

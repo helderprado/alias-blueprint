@@ -1,0 +1,14 @@
+{
+  "image": {
+    "repository": "opensearchproject/opensearch",
+    "tag": "2.19.1@sha256:72fe2fc84be8295906b8efca020b46c58ed45c8da60cd9b8b49e1991e38e89a4"
+  },
+  "persistence": {
+    "image": "busybox",
+    "imageTag": "1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4"
+  },
+  "sysctlInit": {
+    "image": "busybox",
+    "imageTag": "1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4"
+  }
+}

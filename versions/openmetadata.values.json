@@ -1,0 +1,6 @@
+{
+  "image": {
+    "repository": "docker.getcollate.io/openmetadata/server",
+    "tag": "2.0.9@sha256:8575ad1b61866f76075f096c40ec4e9ee19339dcab50169adec9b69bec380f98"
+  }
+}

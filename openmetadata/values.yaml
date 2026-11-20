@@ -1,0 +1,51 @@
+fullnameOverride: openmetadata
+replicaCount: 1
+service:
+  type: ClusterIP
+serviceAccount:
+  create: true
+automountServiceAccountToken: false
+podSecurityContext:
+  fsGroup: 1000
+openmetadata:
+  config:
+    # Use the configured database and search endpoints. Do not create another Airflow.
+    pipelineServiceClientConfig:
+      enabled: false
+      airflow:
+        auth:
+          enabled: false
+    deployPipelinesConfig:
+      enabled: false
+    authentication:
+      enabled: true
+      provider: custom-oidc
+      clientType: confidential
+      enableSelfSignup: false
+      oidcConfiguration:
+        enabled: true
+        oidcType: custom
+    fernetkey:
+      value: ""
+      secretRef: openmetadata-runtime
+      secretKey: fernet-key
+    jwtTokenConfiguration:
+      enabled: true
+      rsapublicKeyFilePath: /opt/openmetadata/jwt/public_key.der
+      rsaprivateKeyFilePath: /opt/openmetadata/jwt/private_key.der
+extraVolumes:
+  - name: jwt-keys
+    secret:
+      secretName: openmetadata-jwt
+      defaultMode: 288
+extraVolumeMounts:
+  - name: jwt-keys
+    mountPath: /opt/openmetadata/jwt
+    readOnly: true
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi

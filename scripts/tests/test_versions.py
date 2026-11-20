@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import tempfile
+import sys
 import unittest
 import yaml
 
@@ -48,6 +50,13 @@ class VersionTests(unittest.TestCase):
                 archive = Path(os.environ['ALIAS_CHARTS_DIR']) / (name + '.tgz')
                 import hashlib
                 self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(), chart['digest'])
+                if name == 'openmetadata':
+                    temporary = tempfile.TemporaryDirectory(prefix='alias-om-chart-')
+                    self.addCleanup(temporary.cleanup)
+                    patched = Path(temporary.name) / 'pinned.tgz'
+                    subprocess.run([sys.executable, str(ROOT / 'scripts/prepare-openmetadata-chart.py'),
+                                    str(archive), str(patched)], check=True)
+                    archive = patched
                 args = [os.environ['ALIAS_HELM'], 'template', name, str(archive), '--namespace', name,
                         '--kube-version', '1.34.13', '--post-renderer', str(ROOT / 'scripts/locked-images.py')]
                 values = ROOT / name / 'values.yaml'
