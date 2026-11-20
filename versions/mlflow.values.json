@@ -1,0 +1,16 @@
+{
+  "image": {
+    "repository": "burakince/mlflow",
+    "tag": "3.16.0@sha256:ab4b566644b90f00f7baf024ab4255e8219a6eeb530f34dd996fd0b0769c5fe1"
+  },
+  "initImages": {
+    "mlflowDbMigration": {
+      "repository": "burakince/mlflow",
+      "tag": "3.16.0@sha256:ab4b566644b90f00f7baf024ab4255e8219a6eeb530f34dd996fd0b0769c5fe1"
+    },
+    "dbchecker": {
+      "repository": "busybox",
+      "tag": "1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4"
+    }
+  }
+}

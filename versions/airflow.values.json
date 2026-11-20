@@ -1,0 +1,5 @@
+{
+  "defaultAirflowRepository": "apache/airflow",
+  "defaultAirflowTag": "2.10.5-python3.11@sha256:b16e19f925ae0dcabaa2271b37212891ed68bf74e26c2db61f46dddd7d502937",
+  "airflowVersion": "2.10.5"
+}

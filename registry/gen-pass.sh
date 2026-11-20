@@ -33,7 +33,7 @@ mkdir -p "$DESTINATION_FOLDER"
 chmod 700 "$DESTINATION_FOLDER"
 TEMP_FILE="$(mktemp "$DESTINATION_FOLDER/.htpasswd.XXXXXX")"
 trap 'rm -f -- "$TEMP_FILE"' EXIT
-printf '%s\n' "$REGISTRY_PASS" | docker run --rm -i --entrypoint htpasswd httpd:2.4-alpine -Bni "$REGISTRY_USER" > "$TEMP_FILE"
+printf '%s\n' "$REGISTRY_PASS" | docker run --rm -i --entrypoint htpasswd httpd@sha256:32bd0639bcc4917ef1fd9363a1d9dd2dd9c498565118b062a10d51e43a5c3a24 -Bni "$REGISTRY_USER" > "$TEMP_FILE"
 unset REGISTRY_PASS REGISTRY_PASSWORD
 if [[ ! -s "$TEMP_FILE" ]]; then
     echo 'Credential generation produced no authentication data.' >&2

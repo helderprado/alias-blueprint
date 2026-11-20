@@ -73,11 +73,14 @@ class RuntimeTests(unittest.TestCase):
 import sys,os,json,pathlib
 command=pathlib.Path(sys.argv[0]).name
 record={'command':command,'args':sys.argv[1:]}
-if command=='kubectl': record['payload']=json.loads(sys.stdin.read())
+if command=='kubectl':
+ if sys.argv[1]=='get': print(json.dumps({'items':[]}))
+ else: record['payload']=json.loads(sys.stdin.read())
 else:
  paths=[sys.argv[i+1] for i,a in enumerate(sys.argv[:-1]) if a=='--values']
- record['override_path']=paths[-1]
- record['values']=json.loads(pathlib.Path(paths[-1]).read_text())
+ runtime_path=next(p for p in paths if p.startswith('/tmp/') and '/versions/' not in p)
+ record['override_path']=runtime_path
+ record['values']=json.loads(pathlib.Path(runtime_path).read_text())
 with open(os.environ['TEST_LOG'],'a') as f: f.write(json.dumps(record)+'\\n')
 '''
             for cmd in ['kubectl', 'helm']:
@@ -95,8 +98,9 @@ with open(os.environ['TEST_LOG'],'a') as f: f.write(json.dumps(record)+'\\n')
                                         env=env, text=True, capture_output=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 records = [json.loads(l) for l in log.read_text().splitlines()]
-                self.assertEqual([r['command'] for r in records], ['kubectl', 'helm'])
+                self.assertEqual([r['command'] for r in records], ['kubectl', 'kubectl', 'helm'])
                 self.assertFalse(Path(records[-1]['override_path']).exists())
+                self.assertIn('--atomic', records[-1]['args'])
                 for k, value in self.env.items():
                     if any(s in k for s in ['PASSWORD', 'SECRET', 'FERNET', 'CRYPT', 'DATABASE_URL']):
                         self.assertNotIn(value, json.dumps(records[-1]) + result.stdout + result.stderr)

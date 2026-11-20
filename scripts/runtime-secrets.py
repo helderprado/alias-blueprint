@@ -61,7 +61,9 @@ def build(component):
         secret('airflow-webserver', {'webserver-secret-key': required('AIRFLOW_WEBSERVER_SECRET_KEY')})
         secret('airflow-metadata', {'connection': required('AIRFLOW_DATABASE_URL')})
         return secrets, {'fernetKeySecretName': 'airflow-fernet', 'webserverSecretKeySecretName': 'airflow-webserver',
-                         'data': {'metadataSecretName': 'airflow-metadata'}, 'postgresql': {'enabled': False}}
+                         'data': {'metadataSecretName': 'airflow-metadata'}, 'postgresql': {'enabled': False},
+                         'createUserJob': {'useHelmHooks': False, 'applyCustomEnv': False, 'ttlSecondsAfterFinished': 300},
+                         'migrateDatabaseJob': {'useHelmHooks': False, 'applyCustomEnv': False, 'ttlSecondsAfterFinished': 300}}
     if component == 'superset':
         mapping = {'SUPERSET_SECRET_KEY': 'SUPERSET_SECRET_KEY', 'DB_USER': 'SUPERSET_DB_USER',
                    'DB_PASS': 'SUPERSET_DB_PASSWORD', 'DB_HOST': 'SUPERSET_DB_HOST',
@@ -75,8 +77,28 @@ def build(component):
 def main():
     component, output = sys.argv[1:]
     secrets, values = build(component)  # Validate everything before any cluster request.
-    payload = json.dumps({'apiVersion': 'v1', 'kind': 'List', 'items': secrets})
-    subprocess.run(['kubectl', 'apply', '-f', '-'], input=payload, text=True, check=True)
+    # External Secrets are outside Helm revision history. Do not change them during
+    # an application upgrade: an automatic Helm rollback could not undo that change.
+    result = subprocess.run(['kubectl', 'get', 'secret', *[s['metadata']['name'] for s in secrets],
+                             '--namespace', component, '--ignore-not-found', '-o', 'json'],
+                            capture_output=True, text=True, check=True)
+    current = json.loads(result.stdout or '{"items": []}')
+    items = current.get('items', [current] if current.get('kind') == 'Secret' else [])
+    existing = {s['metadata']['name']: s for s in items}
+    missing = []
+    for secret in secrets:
+        old = existing.get(secret['metadata']['name'])
+        if old is None:
+            missing.append(secret)
+            continue
+        for key, value in secret['stringData'].items():
+            encoded = base64.b64encode(value.encode()).decode()
+            if old.get('data', {}).get(key) != encoded:
+                raise ValueError('Existing runtime Secret differs: ' + secret['metadata']['name'] +
+                                 '. Credential changes require a separate migration plan; no Secret was modified.')
+    if missing:
+        payload = json.dumps({'apiVersion': 'v1', 'kind': 'List', 'items': missing})
+        subprocess.run(['kubectl', 'apply', '-f', '-'], input=payload, text=True, check=True)
     with open(output, 'w') as stream:
         json.dump(values, stream)
 

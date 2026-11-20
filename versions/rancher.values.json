@@ -1,0 +1,18 @@
+{
+  "image": {
+    "repository": "rancher/rancher",
+    "tag": "v2.15.3@sha256:3f3a50c6e49c1cf5b4673bef236e0f260f36055de4d073438e38c441dc97aa9b"
+  },
+  "postDelete": {
+    "image": {
+      "repository": "rancher/shell",
+      "tag": "v0.8.3@sha256:abb0804d239cae9c137347b0c1175e745ab791d60023ae619f6aa6465fb2da7c"
+    }
+  },
+  "preUpgrade": {
+    "image": {
+      "repository": "rancher/shell",
+      "tag": "v0.8.3@sha256:abb0804d239cae9c137347b0c1175e745ab791d60023ae619f6aa6465fb2da7c"
+    }
+  }
+}

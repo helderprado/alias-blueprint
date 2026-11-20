@@ -1,0 +1,48 @@
+{
+  "hub": {
+    "image": {
+      "name": "quay.io/jupyterhub/k8s-hub",
+      "tag": "3.2.1@sha256:2528c6e575870c00fb03045520f7b3786a0a016889413769bdd33eec98826bf1"
+    }
+  },
+  "singleuser": {
+    "image": {
+      "name": "jupyter/all-spark-notebook",
+      "tag": "python-3.11@sha256:b63bae2d9d34779ac969deeb4834efd838991f77269ca9a76bf6b0d1f8678d29"
+    },
+    "networkTools": {
+      "image": {
+        "name": "quay.io/jupyterhub/k8s-network-tools",
+        "tag": "3.2.1@sha256:e532a2dc4761685cedc87d4c0df864b8b1fad45f4dd54535b1b5dff23897d870"
+      }
+    }
+  },
+  "scheduling": {
+    "userScheduler": {
+      "image": {
+        "name": "registry.k8s.io/kube-scheduler",
+        "tag": "v1.26.11@sha256:0684e23172d920314971580ab115a5b679ac1fae2cb94d83e9105c0b1e93a1bc"
+      }
+    },
+    "userPlaceholder": {
+      "image": {
+        "name": "registry.k8s.io/pause",
+        "tag": "3.9@sha256:7031c1b283388d2c2e09b57badb803c05ebed362dc88d84b480cc47f72a21097"
+      }
+    }
+  },
+  "prePuller": {
+    "hook": {
+      "image": {
+        "name": "quay.io/jupyterhub/k8s-image-awaiter",
+        "tag": "3.2.1@sha256:f65b644ed6db2af65cdefe449ea07242df7995e9ed3a047928ff7f47cc8485b6"
+      }
+    },
+    "pause": {
+      "image": {
+        "name": "registry.k8s.io/pause",
+        "tag": "3.9@sha256:7031c1b283388d2c2e09b57badb803c05ebed362dc88d84b480cc47f72a21097"
+      }
+    }
+  }
+}

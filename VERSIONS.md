@@ -1,38 +1,149 @@
-# Component versions
+# Version inventory and reproducibility baseline
 
-These entries describe repository files, not a measured running environment.
-Unknown values are retained explicitly; no installation was performed.
+**Baseline date: 2026-11-20.** This is a newly selected baseline authorized for
+independent deployment. It is not a reconstruction of versions measured during
+the study. The reference environment is unavailable. Do not attribute these
+choices or local template checks to the paper's experiments.
 
-| Component | Version or status | Evidence |
+`versions.lock.json` records the exact chart releases, official index URLs,
+package SHA-256 values, and verified container image digests. Deployment scripts
+read committed chart versions through `scripts/versions.sh`; no release channel
+is queried to choose a version. Explicit K3s/Airflow/Helm version overrides remain
+possible, but they must name exact releases; changing the baseline requires
+reviewing the corresponding image and dependency locks as well.
+
+## Platform and tools
+
+| Item | New baseline / recorded evidence | Source |
 |---|---|---|
-| K3s | `v1.34.13+k3s1` | `install-k3s.sh` |
-| kubectl | Not confirmed | No recorded client version |
-| Helm client | Not pinned; installer accepts `--version` | `get_helm.sh` |
-| Rancher | Chart version not pinned | `install-rancher.sh` |
-| cert-manager CRDs | `v1.13.3`; chart version not pinned | `install-rancher.sh` |
-| Airflow deployment chart | Stable release `1.16.0` by default; override with `AIRFLOW_CHART_VERSION` | `airflow/deploy.sh`, official repository `https://airflow.apache.org`; legacy bundled chart is unused |
-| Airflow custom image base | `2.6.2` | `airflow/image/Dockerfile`; custom base; validate compatibility with the selected chart |
-| JupyterHub custom hub base | `3.2.1` | `jupyterhub/images/hub/Dockerfile` |
-| Spark and Spark Operator | Chart versions not confirmed | `spark/`, `spark-operator/` |
-| MLflow | Chart version not confirmed | `mlflow/` |
-| Superset | Chart version not pinned; main image tag empty | `superset/values.yaml` |
-| Registry credential generator | `httpd:2.4-alpine` | `registry/gen-pass.sh` |
-| Registry chart | Chart version not pinned | `registry/deploy.sh` |
-| PostgreSQL | `13-alpine` and `14` | `databases/prod-db/deploy.yaml`, `databases/superset-db/deploy.yaml` |
-| MySQL | `5.7.28` | `databases/mlflow-db/deploy.yaml` |
-| pgAdmin | Image tag not pinned | `pgadmin/deployment.yaml` |
-| Homepage | `v0.7.0` | `homepage/values.yaml` |
+| Host OS | Ubuntu 22.04 LTS, amd64, chosen deployment prerequisite; host installation is outside this repo | `versions.lock.json: host_baseline` |
+| Study reference OS | Author-provided README states Ubuntu 20.04 LTS, x86_64, kernel 5.4.0-216-generic; not re-measured here | `README.md`, §2 |
+| Independent study deployment OS | Author-provided README states Rocky Linux 9.x; patch/kernel not recorded | `README.md`, §2 |
+| K3s | `v1.34.13+k3s1`, default fixed release | `install-k3s.sh` |
+| kubectl | K3s-bundled Kubernetes client, tied to the selected K3s distribution; no standalone client installer in this repo | `install-k3s.sh`, `kube-config.sh` |
+| Helm | `v3.17.3`; installer accepts only an exact stable release, never an implicit newest release | `get_helm.sh` |
+| YAML tool dependency | `PyYAML==6.0.3` | `scripts/requirements.txt` |
+| Python for standalone tools / ETL | `3.11.11`; ETL base is the verified digest of `python:3.11.11-slim-bookworm` | `versions.lock.json`, `docker-images/etl-base-image/Dockerfile` |
+| Container OS / bundled interpreters | Inherited from immutable image digests below. Labels such as Ubuntu or bookworm are not evidence of the historical host or kernel. Interpreter patch versions not exposed by manifests are not invented. | Dockerfiles and image lock |
 
-## Configuration status
+## Helm charts
 
-The K3s, registry, Airflow, JupyterHub, MLflow and Superset entry scripts load the
-repository-root `.env` using `scripts/env.sh`. An exported `ALIAS_ENV_FILE` selects
-another trusted Bash file. Assignments in that file override exported values.
-Component deploy scripts validate their required variables before applying
-external Kubernetes Secrets and then running Helm. See `scripts/README.md`.
+All entries were confirmed in their publishers' chart indexes. Chart packages
+were downloaded to temporary storage and checked against index SHA-256 values.
+
+| Component | Chart release | Chart appVersion | Official index |
+|---|---|---|---|
+| airflow | `1.16.0` | `2.10.5` | [index](https://airflow.apache.org/index.yaml) |
+| cert-manager | `v1.13.3` | `v1.13.3` | [index](https://charts.jetstack.io/index.yaml) |
+| homepage | `2.1.0` | `v1.2.0` | [index](https://jameswynn.github.io/helm-charts/index.yaml) |
+| jupyterhub | `3.2.1` | `4.0.2` | [index](https://jupyterhub.github.io/helm-chart/index.yaml) |
+| mlflow | `1.11.7` | `3.16.0` | [index](https://community-charts.github.io/helm-charts/index.yaml) |
+| rancher | `2.15.3` | `v2.15.3` | [index](https://releases.rancher.com/server-charts/stable/index.yaml) |
+| registry | `2.2.3` | `2.8.1` | [index](https://twuni.github.io/docker-registry.helm/index.yaml) |
+| spark-operator | `1.3.2` | `v1beta2-1.5.0-3.5.0` | [index](https://kubeflow.github.io/spark-operator/index.yaml) |
+| superset | `0.14.2` | `4.1.2` | [index](https://apache.github.io/superset/index.yaml) |
+
+Each deployment passes `--version` and a committed `versions/*.values.json`
+override. These image overrides pin hooks as well as normal workloads, because
+Helm post-rendering alone does not cover hooks. `scripts/locked-images.py` adds a
+strict check for other rendered image fields and refuses unknown floating tags.
+Install the exact tool dependency with `python3 -m pip install -r scripts/requirements.txt`
+before deployment. The optional Superset websocket service stays disabled;
+enabling it requires adding a verified immutable image to the baseline.
+
+## Images
+
+The following tags are lookup provenance only. Executed manifests and Dockerfiles
+use the corresponding SHA-256 digest, including tags originally specified only
+by a major version or OS family. A digest fixes bytes even when a publisher moves
+a tag. Digests do not imply vulnerability, compatibility, or license review.
+
+| Source reference | Immutable reference |
+|---|---|
+| `apache/airflow:2.10.5-python3.11` | `apache/airflow@sha256:b16e19f925ae0dcabaa2271b37212891ed68bf74e26c2db61f46dddd7d502937` |
+| `apache/superset:4.1.2` | `apache/superset@sha256:15e110b8533d3cb6a0d529512ea71252b0ac62e3f72b1f7a5000f1361822ac26` |
+| `apache/superset:dockerize` | `apache/superset@sha256:afe59523a6c8774c3b16d0f44146b2e52f327a7d26a47b4cc63b904fcdedf057` |
+| `bitnamilegacy/redis:7.0.10-debian-11-r4` | `bitnamilegacy/redis@sha256:224a79826b42869bdc72a70933efd840c5a5f10a70caafca68e57be6901e36fb` |
+| `burakince/mlflow:3.16.0` | `burakince/mlflow@sha256:ab4b566644b90f00f7baf024ab4255e8219a6eeb530f34dd996fd0b0769c5fe1` |
+| `busybox:1.38.0` | `busybox@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4` |
+| `docker.io/bitnami/redis:7.0.10-debian-11-r4` | `bitnamilegacy/redis@sha256:224a79826b42869bdc72a70933efd840c5a5f10a70caafca68e57be6901e36fb` |
+| `docker.io/kubeflow/spark-operator:v1beta2-1.5.0-3.5.0` | `docker.io/kubeflow/spark-operator@sha256:e229fe76dfd5563d90a8ab4f67c3ab034813cc4dee10b256fb8e33935bbca456` |
+| `dpage/pgadmin4:9.3` | `dpage/pgadmin4@sha256:bd71932cb1ef94719e783f0eed42c227bc67877a7c7e076c7092738711e5f4d4` |
+| `ghcr.io/benphelps/homepage:v0.7.0` | `ghcr.io/benphelps/homepage@sha256:079d9db37c4ef6f815cc107ce0137dad05a37beaf5acc52288b420de3a788122` |
+| `httpd:2.4-alpine` | `httpd@sha256:32bd0639bcc4917ef1fd9363a1d9dd2dd9c498565118b062a10d51e43a5c3a24` |
+| `jupyter/all-spark-notebook:python-3.11` | `jupyter/all-spark-notebook@sha256:b63bae2d9d34779ac969deeb4834efd838991f77269ca9a76bf6b0d1f8678d29` |
+| `jupyterhub/k8s-hub:3.2.1` | `jupyterhub/k8s-hub@sha256:1f8db66b29c597d4a26ec9eef08df4472e896a64f50739d5f242a9c18dd43e3c` |
+| `mysql/mysql-server:5.7.28` | `mysql/mysql-server@sha256:5396bc60a6c08abb6b7e8350b255324a91ee9f3ea11f009aea3e4b61ead38bf6` |
+| `postgres:13-alpine` | `postgres@sha256:fb9065b6e3e213bdc07edd372a5b2a26245840b7fb65d1fd8b6700106d51805c` |
+| `postgres:14` | `postgres@sha256:c0e9c0e9bac7e4c1834b698217a03ee5c708de30d313c84a506972de0e24b059` |
+| `python:3.11.11-slim-bookworm` | `python@sha256:081075da77b2b55c23c088251026fb69a7b2bf92471e491ff5fd75c192fd38e5` |
+| `quay.io/jetstack/cert-manager-cainjector:v1.13.3` | `quay.io/jetstack/cert-manager-cainjector@sha256:ac5154525f99bd0872671613741aac1b7dcb9c0df988571a7618155ddb6fabd2` |
+| `quay.io/jetstack/cert-manager-controller:v1.13.3` | `quay.io/jetstack/cert-manager-controller@sha256:2121d4250f5734ee097df243507d06536fc264140dba3425045a825ef597c79d` |
+| `quay.io/jetstack/cert-manager-ctl:v1.13.3` | `quay.io/jetstack/cert-manager-ctl@sha256:d0d12f721e01b19973c989646c96905bfca7a0ea5f7888d5e9b4adabb4fbc56c` |
+| `quay.io/jetstack/cert-manager-webhook:v1.13.3` | `quay.io/jetstack/cert-manager-webhook@sha256:f45b21f770bf4676c732f19e2ef17c34f46ac75873a5e0aa25703d808b2e5566` |
+| `quay.io/jupyterhub/configurable-http-proxy:4.6.1` | `quay.io/jupyterhub/configurable-http-proxy@sha256:fd916f75415f1e7e813c5a18b34a6042a601604938ff8777b044447efb3bd819` |
+| `quay.io/jupyterhub/k8s-hub:3.2.1` | `quay.io/jupyterhub/k8s-hub@sha256:2528c6e575870c00fb03045520f7b3786a0a016889413769bdd33eec98826bf1` |
+| `quay.io/jupyterhub/k8s-image-awaiter:3.2.1` | `quay.io/jupyterhub/k8s-image-awaiter@sha256:f65b644ed6db2af65cdefe449ea07242df7995e9ed3a047928ff7f47cc8485b6` |
+| `quay.io/jupyterhub/k8s-network-tools:3.2.1` | `quay.io/jupyterhub/k8s-network-tools@sha256:e532a2dc4761685cedc87d4c0df864b8b1fad45f4dd54535b1b5dff23897d870` |
+| `quay.io/prometheus/statsd-exporter:v0.26.0` | `quay.io/prometheus/statsd-exporter@sha256:a3924f9429c8237293336ff40c5a246238ff9f64aaf712521b2d29f45d6214d5` |
+| `rancher/rancher:v2.15.3` | `rancher/rancher@sha256:3f3a50c6e49c1cf5b4673bef236e0f260f36055de4d073438e38c441dc97aa9b` |
+| `rancher/shell:v0.8.3` | `rancher/shell@sha256:abb0804d239cae9c137347b0c1175e745ab791d60023ae619f6aa6465fb2da7c` |
+| `registry.k8s.io/git-sync/git-sync:v4.1.0` | `registry.k8s.io/git-sync/git-sync@sha256:fd9722fd02e3a559fd6bb4427417c53892068f588fc8372aa553fbf2f05f9902` |
+| `registry.k8s.io/kube-scheduler:v1.26.11` | `registry.k8s.io/kube-scheduler@sha256:0684e23172d920314971580ab115a5b679ac1fae2cb94d83e9105c0b1e93a1bc` |
+| `registry.k8s.io/pause:3.9` | `registry.k8s.io/pause@sha256:7031c1b283388d2c2e09b57badb803c05ebed362dc88d84b480cc47f72a21097` |
+| `registry:2.8.1` | `registry@sha256:dbaa3e69f563fc146f3337eb9de422f74f6765bf0203c891ddfbd74a6f9b56eb` |
+| `spark:3.5.0-scala2.12-java17-python3-ubuntu` | `spark@sha256:edc304196cbd7619933658d6e01b082b12bcef45ba96223d4a56584c0b4b1fcf` |
+| `spark:3.5.0-scala2.12-java17-ubuntu` | `spark@sha256:1c72a3d4f0a9634f09bc0d7d6a2fc03653b0bfbb9f34bca2ddf0a4a726abbd49` |
+
+The unused private Hub image was replaced with the official locked Hub image;
+the existing Kubernetes hook uses its `kubernetes_asyncio` client. Custom Hub
+and Airflow Dockerfiles remain available but are not the default deployed image.
+Spark's base now explicitly includes Python. Its recipe no longer downloads
+Python through a moving PPA, upgrades pip/setuptools, or copies absent local
+PySpark directories. Existing Maven artifact versions remain explicit:
+AWS SDK `1.12.262`, PostgreSQL JDBC `42.1.1`, Hadoop `3.3.4`.
+
+## Python dependencies
+
+Application extensions use transitive locks with exact `==` versions and artifact
+hashes. Pip calls use `--no-deps --require-hashes --only-binary=:all:` so they do
+not select additional dependency or source-build tool versions during execution.
+Airflow's lock was resolved with the official `constraints-2.10.5/constraints-3.11.txt`;
+a copy is in `airflow/image/constraints-3.11.txt`. Superset's extension lock targets
+Python 3.10; the other application locks target Python 3.11.
+
+| Consumer | Lock file | Exact package pins | Lock SHA-256 |
+|---|---|---|---|
+| ETL | `docker-images/etl-base-image/requirements.txt` | 8 | `12cfd4ee6e21515fcae24311bbd24f4cc892eb77500e78a4fa4de1b1f1142576` |
+| Custom Hub | `jupyterhub/images/hub/requirements.txt` | 28 | `65ff314c98c9985f990ad6a9b32666d9ec47325f0ce6c2d847415a196ba1c7db` |
+| Custom Airflow | `airflow/image/requirements.txt` | 171 | `5088606e28b89fa62138ab836f9d334d50c8b29d87fd5ab04a92fc43084f3bcc` |
+| Superset extensions | `superset/requirements.lock` | 15 | `eda761cd52efd1abe6f6d7c067355340815bab3e5d414d1a57075931b9de7be7` |
+
+Superset mounts the identical lock as `extraConfigs.requirements.lock` and uses
+it during bootstrap. Python code already baked into locked upstream images is
+fixed by the image digest rather than re-resolved by our scripts. Regenerating a
+lock is a deliberate maintenance action, not part of deployment.
+
+## Configuration and verification limits
+
+Entry scripts load the repository-root `.env` with `scripts/env.sh`; an exported
+`ALIAS_ENV_FILE` selects another trusted Bash file. File assignments override
+exports. Required credentials are validated before external Secrets and Helm are
+invoked. See `scripts/README.md`.
+
+Local verification covers nine chart renders, hook/container image digests,
+Python lock structure and hashes recorded by the resolver, shell syntax, and
+automated tests. An additional online dry-run installation of the Python locks
+was not authorized; full image builds and dependency compatibility in the parent
+images have not been tested. The cert-manager ACME solver uses the exact release
+`v1.13.3` inherited from the pinned chart; its digest was not separately queried. There was no cluster
+installation or end-to-end workload measurement. External databases, storage,
+registry permissions and host provisioning are deployment prerequisites. A
+future Rancher-managed cluster or user-submitted Spark workload is outside this
+set of manifests and needs its own lock review.
 
 ## Third-party licenses
 
-The blueprint license is Apache-2.0. A component-by-component license inventory
-has not been verified and remains pending author confirmation; third-party
-components retain their respective licenses and notices.
+The blueprint is Apache-2.0. Third-party components retain their licenses. A full
+component-by-component license inventory has not been verified by this version
+inventory and remains pending; image pins are not a legal license inventory.

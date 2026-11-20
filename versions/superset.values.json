@@ -1,0 +1,16 @@
+{
+  "image": {
+    "repository": "apache/superset",
+    "tag": "4.1.2@sha256:15e110b8533d3cb6a0d529512ea71252b0ac62e3f72b1f7a5000f1361822ac26"
+  },
+  "initImage": {
+    "repository": "apache/superset",
+    "tag": "dockerize@sha256:afe59523a6c8774c3b16d0f44146b2e52f327a7d26a47b4cc63b904fcdedf057"
+  },
+  "redis": {
+    "image": {
+      "repository": "bitnamilegacy/redis",
+      "tag": "7.0.10-debian-11-r4@sha256:224a79826b42869bdc72a70933efd840c5a5f10a70caafca68e57be6901e36fb"
+    }
+  }
+}

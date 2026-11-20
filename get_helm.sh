@@ -112,23 +112,12 @@ verifySupported() {
 
 # checkDesiredVersion checks if the desired version is available.
 checkDesiredVersion() {
-  if [ "x$DESIRED_VERSION" == "x" ]; then
-    # Get tag from release URL
-    local latest_release_url="https://get.helm.sh/helm-latest-version"
-    local latest_release_response=""
-    if [ "${HAS_CURL}" == "true" ]; then
-      latest_release_response=$( curl -L --silent --show-error --fail "$latest_release_url" 2>&1 || true )
-    elif [ "${HAS_WGET}" == "true" ]; then
-      latest_release_response=$( wget "$latest_release_url" -q -O - 2>&1 || true )
-    fi
-    TAG=$( echo "$latest_release_response" | grep '^v[0-9]' )
-    if [ "x$TAG" == "x" ]; then
-      printf "Could not retrieve the latest release tag information from %s: %s\n" "${latest_release_url}" "${latest_release_response}"
-      exit 1
-    fi
-  else
-    TAG=$DESIRED_VERSION
+  DESIRED_VERSION="${DESIRED_VERSION:-v3.17.3}"
+  if [[ ! "$DESIRED_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "An exact stable Helm version is required" >&2
+    exit 1
   fi
+  TAG="$DESIRED_VERSION"
 }
 
 # checkHelmInstalledVersion checks which version of helm is installed and
@@ -137,7 +126,7 @@ checkHelmInstalledVersion() {
   if [[ -f "${HELM_INSTALL_DIR}/${BINARY_NAME}" ]]; then
     local version=$("${HELM_INSTALL_DIR}/${BINARY_NAME}" version --template="{{ .Version }}")
     if [[ "$version" == "$TAG" ]]; then
-      echo "Helm ${version} is already ${DESIRED_VERSION:-latest}"
+      echo "Helm ${version} is already ${DESIRED_VERSION:-v3.17.3}"
       return 0
     else
       echo "Helm ${TAG} is available. Changing from version ${version}."
@@ -279,8 +268,8 @@ testVersion() {
 help () {
   echo "Accepted cli arguments are:"
   echo -e "\t[--help|-h ] ->> prints this help"
-  echo -e "\t[--version|-v <desired_version>] . When not defined it fetches the latest release from GitHub"
-  echo -e "\te.g. --version v3.0.0 or -v canary"
+  echo -e "\t[--version|-v <desired_version>] . Default: v3.17.3; an exact stable release is required"
+  echo -e "\te.g. --version v3.0.0"
   echo -e "\t[--no-sudo]  ->> install without sudo"
 }
 
@@ -316,7 +305,7 @@ while [[ $# -gt 0 ]]; do
                export DESIRED_VERSION="v${1}"
            fi
        else
-           echo -e "Please provide the desired version. e.g. --version v3.0.0 or -v canary"
+           echo -e "Please provide the desired version. e.g. --version v3.0.0"
            exit 0
        fi
        ;;

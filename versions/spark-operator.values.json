@@ -1,0 +1,6 @@
+{
+  "image": {
+    "repository": "docker.io/kubeflow/spark-operator",
+    "tag": "v1beta2-1.5.0-3.5.0@sha256:e229fe76dfd5563d90a8ab4f67c3ab034813cc4dee10b256fb8e33935bbca456"
+  }
+}

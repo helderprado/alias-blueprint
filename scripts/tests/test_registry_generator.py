@@ -24,7 +24,9 @@ class GeneratorTests(unittest.TestCase):
             docker = bin_dir / 'docker'
             docker.write_text('''#!/usr/bin/env python3
 import os,sys
-assert sys.argv[1:]==['run','--rm','-i','--entrypoint','htpasswd','httpd:2.4-alpine','-Bni','image-reader']
+assert sys.argv[1:6]==['run','--rm','-i','--entrypoint','htpasswd']
+assert sys.argv[6].startswith('httpd@sha256:')
+assert sys.argv[7:]==['-Bni','image-reader']
 assert sys.stdin.read().strip()==os.environ['REGISTRY_PASSWORD']
 mode=os.environ.get('TEST_DOCKER_MODE')
 if mode=='fail': sys.exit(1)

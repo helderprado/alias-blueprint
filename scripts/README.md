@@ -43,3 +43,17 @@ with a required password; use a proper identity provider for multi-user security
 
 No historical cluster is accessed. Test commands use synthetic inputs and mocks;
 a successful local check does not establish a successful Kubernetes deployment.
+
+## Version locks
+
+Install `scripts/requirements.txt` in the Python environment used by the Helm
+post-renderer. Charts read `versions.lock.json`; `versions/*.values.json` supplies
+immutable image references for normal workloads and Helm hooks. An unrecognized
+floating image causes rendering to fail. See `VERSIONS.md` for the new baseline
+and its validation limits. The default Hub uses the official pinned image; the
+existing pod hook uses the built-in asynchronous Kubernetes client.
+
+## Upgrade and downgrade
+
+See `UPGRADES.md` for the release procedure, atomic Helm deployment and the
+limits of rollback for databases, CRDs and external Secrets.
