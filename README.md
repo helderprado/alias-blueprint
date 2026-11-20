@@ -1,30 +1,23 @@
 # ALIAS Blueprint
 
-Reference implementation of the ALIAS architecture for intelligent
-healthcare auditing, as described in:
-
-> The ALIAS Final Blueprint: A Replicable Reference of an Open Architecture for Intelligent Healthcare Auditing
-> Raphael Silva Fontes et al.
-> Frontiers in Digital Health — Health Informatics, ‹ano›. DOI: ‹DOI do artigo›
+Deployment scripts, manifests and configuration for the ALIAS architecture
+for intelligent healthcare auditing.
 
 - **License:** Apache 2.0 (see `LICENSE`)
-- **Citation:** see `CITATION.cff`
-- **Artifact DOI:** ‹DOI do Zenodo — preencher após o depósito›
 - **Component versions:** see `VERSIONS.md`
-- **Status of the reference environment:** decommissioned. See §6.
 
 ## 1. What this repository contains
 
-Deployment artifacts of the nine-layer architecture described in the
-paper. The inventory below maps each layer to the committed implementation.
+The inventory below maps each of the architecture's nine layers to the
+committed implementation.
 Dependencies describe the current deployment configuration; connections marked
 optional require explicit configuration. See `VERSIONS.md` for exact releases
-and the distinction between this baseline and the study environment.
+and validation limits.
 
 | # | Layer / component | Repository paths | Provisioning | Dependencies |
 |---|---|---|---|---|
 | 1 | Infrastructure and security: K3s, Rancher, RBAC | `install-k3s.sh`, `k3s-config.yaml`, `kube-config.sh`, `install-rancher.sh`; component `*/service-account*.yaml` files | Shell installs K3s; Helm installs cert-manager and optional Rancher; `kubectl apply` for RBAC manifests | Host OS and network; cluster access; Helm for Rancher, which uses cert-manager. Component service accounts and role bindings must be applied separately where provided. |
-| 2 | Storage: persistent volumes and S3-compatible object storage | `jupyterhub/persistent-volume.yaml`, `airflow/persistent-volume.yaml`, `spark-operator/persistent-volume.yaml`, `registry/persistent-volume.yaml`, `databases/*/deploy.yaml`; persistence settings in component `*/values.yaml` files | `kubectl apply` for static PV/PVC manifests; Helm creates chart-managed PVCs; filesystem and object-store provisioning are external | Existing node paths/mounts for static local PVs; a suitable StorageClass for dynamic claims; an existing S3 endpoint and bucket for MLflow. No GlusterFS cluster or S3 server installer is included. |
+| 2 | Storage: GlusterFS, persistent volumes and S3-compatible object storage | `glusterfs/`; component `persistent-volume.yaml` files, `databases/*/deploy.yaml` and `*/values.yaml` | Bash installs pinned GlusterFS/NFS-Ganesha host packages and creates the volume/export; `glusterfs/deploy.sh` applies static NFS PVs/PVCs; Helm creates other chart-managed PVCs | Existing hosts and mounted brick filesystems; three storage nodes for the replicated profile, a stable NFS gateway and NFS client packages on K3s nodes. Local PV examples remain optional alternatives. S3 endpoints/buckets are external. |
 | 3 | Processing and AI: Spark, Spark Operator, ETL images | `spark/`, `spark-operator/deploy.sh`, `spark-operator/add-roles.sh`, `spark-operator/database-secrets.yaml`, `spark-operator/persistent-volume.yaml`, `docker-images/pyspark-aws-psql/`, `docker-images/etl-base-image/` | Helm installs the operator and CRDs; shell / `kubectl apply` for service accounts, RBAC and optional storage/Secrets; Dockerfiles build workload images | K3s; service accounts/RBAC; workload images; database, S3 credentials and DAG storage when used by a job. Spark applications, ETL pipelines and trained models must be supplied separately. |
 | 4 | Analysis and development: JupyterHub | `jupyterhub/deploy.sh`, `jupyterhub/values.yaml`, `jupyterhub/persistent-volume.yaml`, `jupyterhub/service-account*.yaml`, `jupyterhub/images/hub/` | Helm via `deploy.sh`; `kubectl apply` for namespace, static storage and service account/RBAC; optional custom image build | K3s, Helm, `JUPYTERHUB_*` runtime Secret; existing `nfs-share-pvc`, service account `spark`, and referenced pull secret `regcred`. Spark namespace/RBAC is needed for notebook-submitted Spark workloads. |
 | 5 | Workflow orchestration: Airflow | `airflow/deploy.sh`, `airflow/values.yaml`, `airflow/persistent-volume.yaml`, `airflow/image/` | Helm via `deploy.sh`, which prepares namespace and runtime Secrets; optional static PVC / custom image build | K3s, Helm, external metadata database, Fernet and webserver keys. Optional DAG Git source requires an exact commit; optional DAG PVC must exist. Spark integration requires separately supplied DAGs and Spark resources. |
@@ -41,9 +34,12 @@ in that Python environment. See `scripts/README.md` for per-component behavior.
 
 The storage manifests contain `local.path` and node-affinity placeholders that
 must be adapted before use. Names such as `nfs-share-pv` do not provision an NFS
-server or a shared filesystem: the manifests declare local volumes. The study's
-GlusterFS topology in §2 is historical context; its installation is not automated
-here. Chart deployments do not apply the separate static PV/PVC files.
+server or a shared filesystem: those manifests declare local volumes. For
+shared storage, use the optional [GlusterFS profile](glusterfs/README.md), which
+provides host provisioning scripts and NFSv4.1 PVs for JupyterHub, Airflow,
+Spark Operator and optionally the registry. Choose one provider for each claim;
+existing data requires a separate migration. Chart deployments do not apply the
+separate static PV/PVC files.
 
 Supporting components are outside the nine-layer numbering:
 
@@ -58,17 +54,13 @@ Supporting components are outside the nine-layer numbering:
 
 ## 2. Requirements
 
-- Base operating system: any distribution with a supported container
-  runtime. The reference cluster ran Ubuntu 20.04 LTS (VMware virtual
-  machines, x86_64, kernel 5.4.0-216-generic); the independent
-  redeployment reported in the paper was performed on Rocky Linux 9.x.
-- Hardware for the reference footprint: 4 nodes, 16 vCPU and 24 GB of
-  RAM per node, 2 TB of storage per node (8 TB aggregated, approximately
-  4 TB usable under the GlusterFS distributed-replicated volume with
-  replication factor 2).
+- Base operating system: Ubuntu 22.04 LTS, amd64, as recorded in
+  `versions.lock.json`. Host creation and OS installation are external.
+- CPU, memory and storage capacity sized for the selected components' resource
+  requests and volume requirements. The optional GlusterFS replicated profile
+  uses groups of three storage nodes and a dedicated mounted filesystem per node.
 - CPU-only. No GPU or TPU is required for the baseline ETL, training,
-  or inference workloads (criterion 3 of the technology admission
-  checklist).
+  or inference workloads.
 - K3s-bundled `kubectl` for `v1.34.13+k3s1` and Helm `v3.17.3`;
   see `VERSIONS.md` for the complete baseline.
 - Outbound network access for image and chart retrieval.
@@ -86,6 +78,7 @@ abort with an explicit message when a required variable is missing.
 | `REGISTRY_HOST` | Host and port of the private registry |
 | `REGISTRY_USER` | Registry user; must not be an administrative account |
 | `REGISTRY_PASSWORD` | Registry password, supplied at runtime |
+| `GLUSTERFS_NODES`, `GLUSTERFS_NFS_SERVER`, `GLUSTERFS_CLIENT_CIDRS` | Optional storage topology and trusted clients; see `glusterfs/.env.example` |
 | ‹demais variáveis extraídas dos manifestos› | |
 
 ## 4. Bootstrap order
@@ -97,10 +90,9 @@ abort with an explicit message when a required variable is missing.
 5. Create the registry pull secret in each namespace (§5).
 6. Prepare each component's prerequisites in §1 (namespaces, storage,
    databases, accounts and external services), then use its `deploy.sh`.
+   If selecting GlusterFS, follow `glusterfs/README.md` before deploying consumers.
    Configure optional cross-service integrations after their endpoints exist.
 7. Verify with the checks in §7.
-
-Expected duration for the full footprint on four nodes: ‹preencher›.
 
 ## 5. Credential policy
 
@@ -126,33 +118,34 @@ the pull secret from the variables in `.env`:
 Use a dedicated service account for image pulls. Do not use an
 administrative account.
 
-**Pre-release history.** An earlier state of this repository contained
-credential material generated during deployment of the reference
-environment. That material has been removed from the working tree and
-from the repository history. The reference environment described in the
-paper has been decommissioned and the authors no longer hold operational
-access to it, so the authors cannot confirm whether any credential
-issued for that environment remains active. Do not reuse any credential
-found in the pre-release history of this repository; generate new values
-as described above.
+**Credential history.** An earlier state of this repository contained
+deployment credentials. That material has been removed from the working tree
+and repository history. Do not reuse credentials from earlier copies of this
+repository; generate new values as described above.
 
-## 6. Status of the reference environment
+## 6. Deployment scope
 
-The four-node reference cluster has been decommissioned. The results
-reported in the paper refer to that environment and to the independent
-redeployment performed during the study. No further measurement or
-deployment can be offered from this artifact. What the repository
-provides is the specification and the code required for a third party to
-provision the architecture independently.
+This repository provides configuration and code to provision the architecture.
+Host infrastructure, external databases, object storage and identity services
+must be prepared by the operator. Local checks and template rendering do not
+establish that the complete stack has been deployed successfully. See
+`VERSIONS.md` for validation limits.
 
 ## 7. Verification
 
-‹listar apenas o que foi de fato executado durante o estudo:
-`kubectl get nodes`, `kubectl -n ‹ns› get pods`, e a consulta de fumaça
-de cada camada. Nada que não tenha rodado.›
+Run local version and storage checks from the repository root:
+
+```sh
+python3 -m unittest discover -s scripts/tests -p test_versions.py -v
+python3 -m unittest discover -s scripts/tests -p test_glusterfs.py -v
+```
+
+Install `scripts/requirements.txt` first. Chart rendering also requires local
+archives and Helm; see `VERSIONS.md`. After deployment, inspect nodes and pods
+with `kubectl get nodes` and `kubectl -n NAMESPACE get pods`, then follow each
+component's README for functional checks.
 
 ## 8. Reuse and license
 
 Code is released under Apache 2.0. Third-party components keep their own
-licenses, listed in `VERSIONS.md`. The manuscript is distributed under
-the terms of ‹política do periódico›.
+licenses; see `VERSIONS.md` for the license inventory status.

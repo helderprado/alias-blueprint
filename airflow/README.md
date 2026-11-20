@@ -36,6 +36,10 @@ plugin is enabled by default. For application workflows, configure one of:
 With neither configured the service starts without your DAGs; it does not reach
 out to a private project repository. The legacy `persistent-volume.yaml` is only
 an optional environment-specific example and is not applied by deploy.sh. Do not
+apply it to a claim already supplied by the optional
+[`../glusterfs/` storage profile](../glusterfs/README.md). That profile can provide
+`airflow-share-dag-pvc` in both Airflow and Spark Operator namespaces, pointing
+at the same DAG directory. Set `AIRFLOW_DAGS_PVC` explicitly to use it. Do not
 run `cluster-admin.sh` for a normal installation; the chart creates the executor
 RBAC it needs.
 

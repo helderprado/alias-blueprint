@@ -51,6 +51,12 @@ a successful local check does not establish a successful Kubernetes deployment.
 
 ## Version locks
 
+Optional shared filesystem provisioning is in `../glusterfs/README.md`. Its
+Bash entrypoints use the same environment loader, install pinned host packages
+and apply static NFSv4.1 PVs/PVCs. They do not provide MLflow's S3 endpoint or
+migrate existing component data. Preview with `bash glusterfs/deploy.sh --render`
+from the repository root after supplying `GLUSTERFS_NFS_SERVER`.
+
 Install `scripts/requirements.txt` in the Python environment used by the Helm
 post-renderer. Charts read `versions.lock.json`; `versions/*.values.json` supplies
 immutable image references for normal workloads and Helm hooks. An unrecognized

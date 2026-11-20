@@ -19,6 +19,7 @@ reviewing the corresponding image and dependency locks as well.
 | kubectl | K3s-bundled Kubernetes client, tied to the selected K3s distribution; no standalone client installer in this repo | `install-k3s.sh`, `kube-config.sh` |
 | Helm | `v3.17.3`; installer accepts only an exact stable release, never an implicit newest release | `get_helm.sh` |
 | Tool dependencies | `PyYAML==6.0.3`, `bcrypt==4.3.0` | `scripts/requirements.txt` |
+| Optional shared storage | GlusterFS `10.1-1ubuntu0.2`, NFS-Ganesha / FSAL_GLUSTER `3.5-1ubuntu1`, NFS client `1:2.6.1-1ubuntu1.2`; Ubuntu 22.04 amd64 host packages | `versions.lock.json: glusterfs`, `glusterfs/` |
 | Python for standalone tools / ETL | `3.11.11`; ETL base is the verified digest of `python:3.11.11-slim-bookworm` | `versions.lock.json`, `docker-images/etl-base-image/Dockerfile` |
 | Container OS / bundled interpreters | Inherited from immutable image digests below. Container OS labels do not identify the host OS or kernel. Interpreter patch versions not exposed by manifests are not recorded. | Dockerfiles and image lock |
 
@@ -266,3 +267,28 @@ Trino deployment verifies the official chart SHA-256 and excludes only the
 upstream CI connection-test template, whose demo credentials/certificate names
 do not match this authenticated profile. Application templates are unchanged.
 See `scripts/prepare-trino-chart.py`; the operator SQL smoke query is in its README.
+
+## GlusterFS storage profile
+
+`glusterfs/install-node.sh` installs the exact host package revisions recorded
+under `glusterfs.packages`, including the matching Gluster libraries. These
+revisions were checked against official Ubuntu package metadata: [GlusterFS](https://packages.ubuntu.com/jammy-updates/glusterfs-server),
+[NFS-Ganesha](https://packages.ubuntu.com/jammy-updates/nfs-ganesha),
+[FSAL_GLUSTER](https://packages.ubuntu.com/jammy-updates/nfs-ganesha-gluster) and
+[NFS client](https://packages.ubuntu.com/jammy-updates/nfs-common). Installers
+fail when a pinned package is unavailable and refuse downgrades. Additional OS
+dependencies are resolved by the host's APT repositories; this is a component
+package lock, not a complete OS snapshot.
+
+The optional volume/export/PV scripts use NFSv4.1 and the standard Kubernetes
+NFS volume source. They add no chart or container image and do not use the
+removed GlusterFS Kubernetes volume driver. Three replicas are the default;
+one node is an explicit development option. Consumer defaults and the existing
+chart/image locks remain unchanged until the operator selects this profile.
+
+Offline tests cover configuration validation, generated PV/claim bindings,
+NFS access restrictions, rejection of conflicting/unmanaged resources before
+writes, existing-volume reuse, and inventory failure handling. No package
+installation, Gluster cluster, NFS mount, workload I/O or failover has been run
+for this addition. Gateway high availability and data migration are outside
+this profile. See `glusterfs/README.md` for provisioning and verification.
