@@ -111,7 +111,24 @@ extraVolumeMounts: []
 # Files can be passed as helm --set-file configOverrides.my-override=my-file.py
 configOverrides:
   secret: |
-    SECRET_KEY = "TEST_NON_DEV_SECRET"
+    import os
+    from urllib.parse import quote
+    SECRET_KEY = os.environ["SUPERSET_SECRET_KEY"]
+    SQLALCHEMY_DATABASE_URI = (
+        "postgresql+psycopg2://" + quote(os.environ["DB_USER"], safe="") + ":" +
+        quote(os.environ["DB_PASS"], safe="") + "@" + os.environ["DB_HOST"] +
+        ":5432/" + quote(os.environ["DB_NAME"], safe="")
+    )
+    _redis_auth = quote(os.environ["REDIS_PASSWORD"], safe="")
+    _redis_host = os.environ.get("REDIS_HOST", "superset-redis-headless")
+    _redis_url = "redis://:" + _redis_auth + "@" + _redis_host + ":6379/"
+    CACHE_CONFIG = {"CACHE_TYPE": "RedisCache", "CACHE_REDIS_URL": _redis_url + "1"}
+    DATA_CACHE_CONFIG = CACHE_CONFIG.copy()
+    class CeleryConfig:
+        broker_url = _redis_url + "0"
+        result_backend = _redis_url + "0"
+        imports = ("superset.sql_lab", "superset.tasks.scheduler")
+    CELERY_CONFIG = CeleryConfig
 
     BABEL_DEFAULT_LOCALE = 'pt_BR'
     BABEL_DEFAULT_TIMEZONE = 'America/Recife'
@@ -271,13 +288,13 @@ supersetNode:
   connections:
     # -- Change in case of bringing your own redis and then also set redis.enabled:false
     redis_host: '{{ .Release.Name }}-redis-headless'
-    # redis_password: superset
+    # Supply Redis authentication through an external Secret.
     redis_port: "6379"
     # You need to change below configuration incase bringing own PostgresSQL instance and also set postgresql.enabled:false
     db_host: superset-db-service.databases.svc.cluster.local
     db_port: 5432
     db_user: superset
-    db_pass: WxfgMQuYuVrkgSNh
+    db_pass: ""
     db_name: db
   env: {}
   # -- If true, forces deployment to reload on each upgrade
@@ -671,13 +688,13 @@ init:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": "before-hook-creation"
   loadExamples: false
-  createAdmin: true
+  createAdmin: false
   adminUser:
     username: admin
     firstname: Superset
     lastname: Admin
     email: admin@superset.com
-    password: admin
+    password: ""
   # -- List of initContainers
   # @default -- a container waiting for postgres
   initContainers:
@@ -747,7 +764,7 @@ postgresql:
     ## PostgreSQL name for a custom user to create
     username: superset
     ## PostgreSQL password for the custom user to create. Ignored if `auth.existingSecret` with key `password` is provided
-    password: superset
+    password: ""
     ## PostgreSQL name for a custom database to create
     database: superset
 
@@ -801,7 +818,7 @@ redis:
     ## Name of the key containing the secret.
     existingSecretKey: ""
     ## Redis password
-    password: superset
+    password: ""
   ##
   ## Master configuration
   ##

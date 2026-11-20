@@ -7,15 +7,28 @@ hub:
       - regcred
 
   extraEnv:
-    JUPYTERHUB_CRYPT_KEY: "$(openssl rand -hex 32)"
+    JUPYTERHUB_CRYPT_KEY:
+      valueFrom:
+        secretKeyRef:
+          name: jupyterhub-runtime
+          key: crypt-key
+    JUPYTERHUB_AUTH_PASSWORD:
+      valueFrom:
+        secretKeyRef:
+          name: jupyterhub-runtime
+          key: auth-password
 
   config:
     JupyterHub:
-      authenticator_class:: "dummy"
-    DummyAuthenticator:
-      password: "v2nkSpdS7NAfDuF2"
+      authenticator_class: "dummy"
 
   extraConfig:
+    credentials: |
+      import os
+      password = os.environ["JUPYTERHUB_AUTH_PASSWORD"]
+      if not password:
+          raise ValueError("JUPYTERHUB_AUTH_PASSWORD must be nonempty")
+      c.DummyAuthenticator.password = password
     startTimeout: |
       c.KubeSpawner.start_timeout = 600  # Timeout de 10 minutos para iniciar os pods dos usuários
 
@@ -27,7 +40,7 @@ hub:
       c.KubeSpawner.modify_pod_hook = modify_pod_hook
 
 proxy:
-  secretToken: fb4dc5bbd78a8206a4e2760f41b3859aa0900ddbe4c677cb4c00b5d080dbe593
+  secretToken: ""
   service:
     type: NodePort
     nodePorts:

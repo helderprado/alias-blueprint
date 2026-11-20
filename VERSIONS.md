@@ -25,14 +25,11 @@ Unknown values are retained explicitly; no installation was performed.
 
 ## Configuration status
 
-`.env.example` is a template only. The current scripts do not automatically
-load `.env`. `install-k3s.sh` accepts exported `K3S_VERSION` (or
-`INSTALL_K3S_VERSION`) and `K3S_CONFIG`, with a fixed version and the
-repository-local configuration as defaults;
-registry scripts request credentials interactively. The README template's
-statements about environment loading and validation are not implemented by
-these scripts as a whole. The K3s installer validates the release format,
-configuration file, and required commands before contacting the installer.
+The K3s, registry, Airflow, JupyterHub, MLflow and Superset entry scripts load the
+repository-root `.env` using `scripts/env.sh`. An exported `ALIAS_ENV_FILE` selects
+another trusted Bash file. Assignments in that file override exported values.
+Component deploy scripts validate their required variables before applying
+external Kubernetes Secrets and then running Helm. See `scripts/README.md`.
 
 ## Third-party licenses
 

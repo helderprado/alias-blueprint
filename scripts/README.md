@@ -1,0 +1,45 @@
+# Local configuration and runtime Secrets
+
+Copy `.env.example` to `.env`, restrict it with `chmod 600 .env`, and fill the
+section for the component being deployed. Empty sections for other components
+are allowed. Quote shell metacharacters. This is a trusted Bash file, loaded
+with `source`; do not use an untrusted file. Files are loaded from the repository
+root even when the script is invoked from another directory. `ALIAS_ENV_FILE`
+selects another file. Assignments in the file override exported values; without
+a file, exported variables alone are sufficient.
+
+Run the relevant script with Bash, for example `bash jupyterhub/deploy.sh`.
+Deployment scripts validate all required inputs before contacting Kubernetes.
+Namespaces, external databases, users and S3 buckets must already exist.
+
+| Entry script | Runtime Secrets | Consumer |
+|---|---|---|
+| `jupyterhub/deploy.sh` | `jupyterhub-runtime` | Hub Secret references for encryption and dummy authentication |
+| `mlflow/deploy.sh` | `mlflow-runtime` | Chart external database and S3 credential references |
+| `superset/deploy.sh` | `superset-runtime` | Explicit pod environment references and Redis dependency |
+| `airflow/deploy.sh` | `airflow-fernet`, `airflow-webserver`, `airflow-metadata` | Official chart existing-Secret options |
+| Registry pull-secret wrappers | `regcred` | Dedicated `registry-puller` ServiceAccount |
+
+Secret payloads are sent to `kubectl` through stdin. Temporary Helm overrides
+contain Secret names and non-sensitive configuration, never passwords or tokens;
+the files are mode 600 and removed on exit. Application credentials reside in
+Kubernetes Secrets: restrict access to those objects. Scripts disable shell
+tracing before loading local configuration.
+
+`registry/gen-pass.sh` also consumes `REGISTRY_USER` and `REGISTRY_PASSWORD`, and
+writes only a bcrypt file in the ignored `registry/registry-creds/` directory.
+`registry/deploy.sh` consumes that file. Registry account permissions must be
+assigned by the registry operator; rejecting administrative usernames cannot
+prove the account is read-only.
+
+Airflow uses the external database in `AIRFLOW_DATABASE_URL`; the bundled
+PostgreSQL is disabled by the generated override. This does not create the
+external database or initialize credentials on an existing database server.
+Superset uses the external PostgreSQL database in its variables and chart-managed
+Redis authentication. The scripts do not provision database infrastructure.
+Default Airflow and Superset application-user creation stays disabled; configure
+user onboarding separately. JupyterHub retains the original dummy authenticator
+with a required password; use a proper identity provider for multi-user security.
+
+No historical cluster is accessed. Test commands use synthetic inputs and mocks;
+a successful local check does not establish a successful Kubernetes deployment.

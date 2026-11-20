@@ -7,7 +7,7 @@ backendStore:
     port: 3306
     database: "mlflow"
     user: "mlflow"
-    password: "mlflow"
+    password: ""
 
 artifactRoot:
   s3:

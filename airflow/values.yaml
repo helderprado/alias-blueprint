@@ -403,7 +403,7 @@ data:
   # Otherwise pass connection values in
   metadataConnection:
     user: postgres
-    pass: postgres
+    pass: ""
     protocol: postgresql
     host: ~
     port: 5432
@@ -1258,14 +1258,13 @@ webserver:
 
   # Create initial user.
   defaultUser:
-    enabled: true
+    enabled: false
     role: Admin
     username: admin
     email: admin@example.com
     firstName: admin
     lastName: user
-    password: admin
-
+    password: ""
   # Launch additional containers into webserver.
   extraContainers: []
   # Add additional init containers into webserver.
@@ -2306,7 +2305,7 @@ postgresql:
   enabled: true
   auth:
     enablePostgresUser: true
-    postgresPassword: postgres
+    postgresPassword: ""
     username: ""
     password: ""
 

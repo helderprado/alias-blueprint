@@ -2,14 +2,15 @@
 set -euo pipefail
 umask 077
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../scripts/env.sh"
 DESTINATION_FOLDER="$SCRIPT_DIR/registry-creds"
-read -r -p 'Registry username (not admin): ' REGISTRY_USER
-if [[ ! "$REGISTRY_USER" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ || "${REGISTRY_USER,,}" == admin ]]; then
+: "${REGISTRY_USER:?Set REGISTRY_USER in .env or export it}"
+: "${REGISTRY_PASSWORD:?Set REGISTRY_PASSWORD in .env or export it}"
+REGISTRY_PASS="$REGISTRY_PASSWORD"
+if [[ ! "$REGISTRY_USER" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ || "${REGISTRY_USER,,}" == admin || "${REGISTRY_USER,,}" == root ]]; then
     echo 'Choose a non-admin username using letters, digits, dot, underscore or hyphen.' >&2
     exit 1
 fi
-read -r -s -p 'New registry password: ' REGISTRY_PASS
-printf '\n'
 if [[ ${#REGISTRY_PASS} -lt 16 ]]; then
     echo 'Use a new password of at least 16 characters.' >&2
     exit 1

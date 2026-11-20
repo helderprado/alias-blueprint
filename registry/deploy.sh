@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../scripts/env.sh"
 AUTH_FILE="$SCRIPT_DIR/registry-creds/htpasswd"
 if [[ ! -s "$AUTH_FILE" ]]; then
     echo 'Run registry/gen-pass.sh to generate new local credentials first.' >&2

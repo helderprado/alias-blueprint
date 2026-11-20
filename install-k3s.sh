@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/scripts/env.sh"
 
 # Use a fixed release by default; overrides must also name an exact release.
 K3S_VERSION="${K3S_VERSION:-${INSTALL_K3S_VERSION:-v1.34.13+k3s1}}"
