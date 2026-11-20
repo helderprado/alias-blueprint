@@ -1,0 +1,144 @@
+{{- if not (regexMatch "^[^ ]+@sha256:[a-f0-9]{64}$" .Values.image) }}
+{{- fail "Supply the built MinIO image pinned by SHA-256 digest" }}
+{{- end }}
+{{- if not .Values.persistence.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ required "Choose an explicit StorageClass or an existing dedicated claim" .Values.persistence.storageClass | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alias-minio
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: alias-minio
+    spec:
+      automountServiceAccountToken: false
+      {{- if .Values.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: minio
+          image: {{ .Values.image | quote }}
+          command: [/usr/local/bin/minio]
+          args: [server, /data, --address, ":9000", --console-address, ":9001", --certs-dir, /certs]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: HOME
+              value: /tmp
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-root
+                  key: rootUser
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-root
+                  key: rootPassword
+          ports:
+            - {name: s3, containerPort: 9000}
+            - {name: console, containerPort: 9001}
+          startupProbe:
+            httpGet:
+              path: /minio/health/live
+              port: s3
+              scheme: {{ ternary "HTTPS" "HTTP" (not (empty .Values.tlsSecret)) }}
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: s3
+              scheme: {{ ternary "HTTPS" "HTTP" (not (empty .Values.tlsSecret)) }}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: s3
+              scheme: {{ ternary "HTTPS" "HTTP" (not (empty .Values.tlsSecret)) }}
+            periodSeconds: 20
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+            - {name: certs, mountPath: /certs, readOnly: true}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ default "minio-data" .Values.persistence.existingClaim }}
+        - name: tmp
+          emptyDir: {}
+        - name: certs
+          {{- if .Values.tlsSecret }}
+          secret:
+            secretName: {{ .Values.tlsSecret }}
+            items:
+              - {key: tls.crt, path: public.crt}
+              - {key: tls.key, path: private.key}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: alias-minio
+  ports:
+    - {name: s3, port: 9000, targetPort: s3}
+    - {name: console, port: 9001, targetPort: console}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: minio-client-access
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alias-minio
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+    {{- range .Values.allowedNamespaces }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+      ports:
+        - {protocol: TCP, port: 9000}
+    {{- end }}

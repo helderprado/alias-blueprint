@@ -7,3 +7,5 @@ openmetadata/runtime-creds/
 opensearch/runtime-creds/
 trino/runtime-creds/
 pinot/runtime-creds/
+minio/runtime-creds/
+minio/*-connection.env

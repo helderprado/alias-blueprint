@@ -1,0 +1,17 @@
+# The runtime validator supplies an operator-built immutable image and Secret references.
+image: ""
+imagePullSecret: ""
+tlsSecret: ""
+persistence:
+  existingClaim: ""
+  storageClass: ""
+  size: 50Gi
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+allowedNamespaces: []
+clients: []

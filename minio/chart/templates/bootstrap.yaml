@@ -1,0 +1,99 @@
+{{- if .Values.clients }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-bootstrap
+data:
+  bootstrap.sh: |
+    #!/bin/sh
+    set -eu
+    umask 077
+    export HOME=/tmp
+    export MC_CONFIG_DIR=/tmp/mc
+    endpoint="{{ ternary "https" "http" (not (empty .Values.tlsSecret)) }}://minio.minio.svc.cluster.local:9000"
+    # No shell tracing or insecure TLS flag; root credentials stay in Secret mounts.
+    mc alias set local "$endpoint" "$(cat /credentials/root/rootUser)" "$(cat /credentials/root/rootPassword)" >/dev/null
+    {{- range .Values.clients }}
+    {{- range .buckets }}
+    mc mb --ignore-existing "local/{{ . }}" >/dev/null
+    {{- end }}
+    mc admin policy create local "alias-{{ .name }}" "/config/{{ .name }}.json" >/dev/null
+    access=$(cat "/credentials/{{ .name }}/accessKey")
+    mc admin user add local "$access" "$(cat /credentials/{{ .name }}/secretKey)" >/dev/null
+    mc admin policy attach local "alias-{{ .name }}" --user "$access" >/dev/null
+    {{- end }}
+    echo 'MinIO private buckets and scoped accounts are ready.'
+  {{- range .Values.clients }}
+  {{ .name }}.json: {{ .policy | toJson | quote }}
+  {{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-bootstrap
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: minio-bootstrap
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      {{- if .Values.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: bootstrap
+          image: {{ .Values.image | quote }}
+          command: [/bin/sh, /config/bootstrap.sh]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: config, mountPath: /config, readOnly: true}
+            - {name: root, mountPath: /credentials/root, readOnly: true}
+            {{- range .Values.clients }}
+            - {name: "client-{{ .name }}", mountPath: "/credentials/{{ .name }}", readOnly: true}
+            {{- end }}
+            {{- if .Values.tlsSecret }}
+            - {name: ca, mountPath: /etc/ssl/certs/minio.crt, subPath: tls.crt, readOnly: true}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: minio-bootstrap
+        - name: root
+          secret:
+            secretName: minio-root
+        {{- range .Values.clients }}
+        - name: "client-{{ .name }}"
+          secret:
+            secretName: {{ .secretName }}
+        {{- end }}
+        {{- if .Values.tlsSecret }}
+        - name: ca
+          secret:
+            secretName: {{ .Values.tlsSecret }}
+        {{- end }}
+{{- end }}

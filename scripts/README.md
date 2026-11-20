@@ -13,6 +13,12 @@ Deployment scripts validate all required inputs before contacting Kubernetes.
 External databases, users and S3 buckets must already exist. Airflow, MLflow, OpenSearch, OpenMetadata, Trino and Pinot create their namespaces after validation; other component namespaces
 must already exist.
 
+The optional independent S3 service is documented in `../minio/README.md`.
+Its interactive wizard writes a private component environment file. Deployment
+uses this same loader and immutable runtime Secret checks, with a local Helm
+chart, an explicitly selected storage source and an operator-built image digest.
+`minio/deploy.sh --render` previews only references without contacting a cluster.
+
 | Entry script | Runtime Secrets | Consumer |
 |---|---|---|
 | `trino/deploy.sh` | `trino-auth`, `trino-runtime`, `trino-tls`, optional `trino-catalogs` | SQL authentication, TLS and source configuration |
@@ -20,6 +26,7 @@ must already exist.
 | `jupyterhub/deploy.sh` | `jupyterhub-runtime` | Hub Secret references for encryption and dummy authentication |
 | `opensearch/deploy.sh` | `opensearch-security`, `opensearch-tls` | Authenticated persistent search backend |
 | `openmetadata/deploy.sh` | `openmetadata-runtime`, `openmetadata-jwt` | Server credential references, OIDC, Fernet and JWT volume |
+| `minio/deploy.sh` | `minio-root`, `minio-client-PROFILE` | Independent S3 server and bucket-scoped client accounts |
 | `mlflow/deploy.sh` | `mlflow-runtime` | Chart external database and S3 credential references |
 | `superset/deploy.sh` | `superset-runtime` | Explicit pod environment references and Redis dependency |
 | `airflow/deploy.sh` | `airflow-fernet`, `airflow-webserver`, `airflow-metadata` | Official chart existing-Secret options |

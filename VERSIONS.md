@@ -292,3 +292,44 @@ writes, existing-volume reuse, and inventory failure handling. No package
 installation, Gluster cluster, NFS mount, workload I/O or failover has been run
 for this addition. Gateway high availability and data migration are outside
 this profile. See `glusterfs/README.md` for provisioning and verification.
+
+## Optional MinIO source-built profile
+
+`minio/chart/` is a local Apache-2.0 chart, version `0.1.0`, separate from the
+13 downloaded upstream charts above. The Community server is
+`RELEASE.2025-10-15T17-29-55Z` at commit
+`9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a`; the client is
+`RELEASE.2025-08-13T08-35-41Z` at commit
+`7394ce0dd2a80935aded936b09fa12cbb3cb8096`. Both retain AGPLv3; this does not
+change the license of the blueprint's original scripts/chart. The server
+repository was archived April 25, 2026; continued maintenance is not claimed.
+See [MinIO licensing, source retention and primary sources](minio/README.md).
+
+The official chart index was inspected (chart `5.4.0`, package SHA-256
+`25fa2740480d1ebc9e64340854a6c42d3a7bc39c2a77378da91b21f144faa9af`), but that
+chart defaults to a December 2024 server image. It is not installed by this
+profile. The local chart supplies dedicated persistent storage, health probes,
+NetworkPolicy and bucket-scoped bootstrap accounts without inheriting that image.
+The October 2025 server release includes a session-policy security fix and
+instructs operators to build containers from source.
+
+`versions.lock.json: minio` records both downloaded source archives' SHA-256
+values, verified tag-to-commit mappings, the Go `1.24.8-bookworm` builder digest,
+and the existing Python `3.11.11-slim-bookworm` runtime digest. `minio/Dockerfile`
+checks the source archives and Go modules and retains corresponding sources and
+license files. No output-image digest is invented: deployment requires
+`MINIO_IMAGE` with the actual digest of the operator's built and published image.
+Server and bootstrap jobs use that same immutable image.
+
+Offline validation covers both PVC modes and HTTP/TLS chart rendering, credential
+separation and refusal of changed credentials, migration guards, restricted
+bucket policies, private connection exports and the interactive wizard. Use:
+
+```sh
+ALIAS_HELM=/path/to/helm python3 -m unittest discover -s scripts/tests -p test_minio.py -v
+```
+
+The image has not been built or run here. No live S3 operations, cluster
+installation, workload sizing, persistence/failover checks or replication duration
+were measured. Additional consumer integrations are configuration paths, not
+verified end-to-end deployments. Helm rollback cannot undo bucket/IAM state.

@@ -15,6 +15,13 @@ Secret, and runs an atomic Helm upgrade/install. Existing runtime credential
 changes are refused. A dedicated external MySQL database and an existing writable
 S3-compatible bucket are prerequisites; this deploy does not create them.
 
+For an optional in-cluster S3 endpoint, see `../minio/README.md`. Deploy it
+independently, then export the `mlflow` profile with `minio/connection.sh`. Merge
+the resulting `MLFLOW_S3_*` settings into MLflow's own environment file; the
+MinIO root account must not be used by MLflow. An existing MLflow Secret with
+different credentials requires an explicit migration, and existing artifacts
+are not copied automatically. MySQL remains a separate prerequisite.
+
 The internal API is `http://mlflow.mlflow.svc.cluster.local:5000`. For local use:
 
 ```sh
