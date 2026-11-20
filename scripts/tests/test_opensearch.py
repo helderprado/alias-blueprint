@@ -24,7 +24,8 @@ class OpenSearchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='alias-search-') as name:
             directory = Path(name)
             env = {'OPENSEARCH_ADMIN_USER': 'search-admin', 'OPENSEARCH_ADMIN_PASSWORD': 'Synthetic-Admin-Value-123',
-                   'OPENMETADATA_SEARCH_USER': 'catalog-indexer', 'OPENMETADATA_SEARCH_PASSWORD': 'Synthetic-Catalog-Value-123',
+                   'OPENSEARCH_APP_USER': 'service-client', 'OPENSEARCH_APP_PASSWORD': 'Synthetic-App-Value-123',
+                   'OPENSEARCH_APP_INDEX_PATTERNS': 'orders-*,metrics-*',
                    'OPENSEARCH_TRUSTSTORE_PASSWORD': 'Synthetic-Trust-Value-123'}
             with patch.object(security, 'ROOT', directory), patch.dict(os.environ, env):
                 security.bootstrap()
@@ -40,12 +41,14 @@ class OpenSearchTests(unittest.TestCase):
                 users = json.loads(secrets[0]['stringData']['internal_users.yml'])
                 self.assertEqual(set(users), {'_meta', admin, catalog})
                 roles = json.loads(secrets[0]['stringData']['roles_mapping.yml'])
-                self.assertNotIn('catalog_indexer', roles['bootstrap_admin']['backend_roles'])
+                self.assertNotIn('application_user', roles['bootstrap_admin']['backend_roles'])
+                application_role = json.loads(secrets[0]['stringData']['roles.yml'])['application_indexes']
+                self.assertEqual(application_role['index_permissions'][0]['index_patterns'], ['orders-*', 'metrics-*'])
                 for password in env.values():
                     if password.startswith('Synthetic-'):
                         self.assertNotIn(password, json.dumps(secrets) + json.dumps(values))
                 self.assertNotIn(base64.b64encode((local / 'ca-key.pem').read_bytes()).decode(), json.dumps(secrets))
-                with patch.dict(os.environ, {'OPENMETADATA_SEARCH_PASSWORD': 'Different-Synthetic-Value-123'}), self.assertRaises(ValueError):
+                with patch.dict(os.environ, {'OPENSEARCH_APP_PASSWORD': 'Different-Synthetic-Value-123'}), self.assertRaises(ValueError):
                     security.material()
 
                 # Use ephemeral matching DER keys to exercise the catalog volume wiring.
@@ -58,6 +61,9 @@ class OpenSearchTests(unittest.TestCase):
                 metadata_env = {
                     'OPENMETADATA_JWT_PRIVATE_KEY_FILE': str(private), 'OPENMETADATA_JWT_PUBLIC_KEY_FILE': str(public),
                     'OPENMETADATA_SEARCH_TRUSTSTORE_FILE': str(local / 'truststore.jks'),
+                    'OPENMETADATA_SEARCH_TRUSTSTORE_PASSWORD': env['OPENSEARCH_TRUSTSTORE_PASSWORD'],
+                    'OPENMETADATA_SEARCH_USER': env['OPENSEARCH_APP_USER'],
+                    'OPENMETADATA_SEARCH_PASSWORD': env['OPENSEARCH_APP_PASSWORD'],
                     'OPENMETADATA_FERNET_KEY': base64.urlsafe_b64encode(bytes(range(32))).decode(),
                     'OPENMETADATA_PUBLIC_URL': 'https://metadata.example',
                     'OPENMETADATA_DB_HOST': 'postgres.example', 'OPENMETADATA_DB_NAME': 'catalog',

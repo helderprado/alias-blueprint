@@ -1,47 +1,76 @@
-# OpenSearch backend for OpenMetadata
+# Standalone OpenSearch service
 
-Pinned chart `2.32.0`, OpenSearch `2.19.1`. This dedicated single-node deployment
-provides the catalog's search indexes. It has a 20Gi PVC and ClusterIP Service
-`opensearch.opensearch.svc.cluster.local:9200`, uses HTTPS and authentication,
-and does not install Dashboards or expose a public endpoint. A single node is
-not highly available; it is the compact footprint for independent deployment.
+Pinned chart `2.32.0`, OpenSearch `2.19.1`. Install and use this service without
+OpenMetadata, Airflow, or their configuration. It has a 20Gi PVC and internal
+HTTPS endpoint `opensearch.opensearch.svc.cluster.local:9200`. It does not install
+Dashboards or expose a public endpoint. The single-node footprint is not highly
+available; plan replicas and storage for a larger deployment separately.
 
-## Bootstrap and deploy
+## Independent configuration and deployment
 
-1. Copy/fill the root `.env` as documented in `scripts/README.md`:
-   `OPENSEARCH_ADMIN_USER`, `OPENSEARCH_ADMIN_PASSWORD`,
-   `OPENSEARCH_TRUSTSTORE_PASSWORD`, `OPENMETADATA_SEARCH_USER`,
-   `OPENMETADATA_SEARCH_PASSWORD`. Passwords must contain 16..72 UTF-8 bytes;
-   the admin and catalog usernames must differ. No default password is provided.
-2. Install the pinned Python dependencies in `scripts/requirements.txt`. The
-   generator also needs OpenSSL and Java `keytool`. Nodes need a usable default
-   StorageClass and sufficient resources (request 2Gi RAM and 500m CPU). Configure
-   Linux `vm.max_map_count >= 262144` on eligible nodes. This chart deliberately
-   does not modify host sysctls with a privileged container.
-3. Run `bash opensearch/gen-security.sh`. It generates a private CA, a server key
-   and certificate with the internal Service DNS names, a Java truststore, and
-   bcrypt hashes for two distinct accounts. All files stay in ignored
-   `opensearch/runtime-creds/` with restrictive permissions. The CA private key
-   is never uploaded to Kubernetes. Existing material is validated and preserved.
-4. Run `bash opensearch/deploy.sh`. It validates local inputs, creates the
-   namespace and missing Secrets, then performs an atomic Helm upgrade/install.
-5. Keep the generated truststore path in `OPENMETADATA_SEARCH_TRUSTSTORE_FILE`,
-   and run the OpenMetadata bootstrap/deployment as documented in that directory.
-   Its deployment imports the truststore and password via Secrets, without
-   disabling TLS certificate checks. PostgreSQL and OIDC remain prerequisites.
+Use either the root `.env` or a component-specific file:
 
-The cluster initialization uses only the generated internal accounts and role
-mappings. The default demo configuration is disabled. The catalog account can
-manage application indexes and query cluster health; it cannot administer the
-security configuration. Index permissions cover this dedicated instance's
-application indexes, so do not mix unrelated applications into this instance.
-The separate bootstrap admin can administer the service. Its plaintext password
-is not supplied to OpenMetadata or the Helm values.
+```sh
+cp opensearch/.env.example opensearch/.env
+chmod 600 opensearch/.env
+# Fill only OPENSEARCH_* in that file.
+ALIAS_ENV_FILE="$PWD/opensearch/.env" bash opensearch/gen-security.sh
+ALIAS_ENV_FILE="$PWD/opensearch/.env" bash opensearch/deploy.sh
+```
 
-The initial security files seed a fresh security index; they do not reconfigure
-accounts in an existing OpenSearch data volume. Existing local material and
-Kubernetes Secret changes are refused during ordinary deploy. Manage a later
-account change as a separate planned security configuration operation.
+The generator requires OpenSSL, Java `keytool` and `scripts/requirements.txt`.
+Nodes need a usable default StorageClass, 2Gi RAM/500m CPU for the requests and
+Linux `vm.max_map_count >= 262144`. Host sysctls are not changed by this chart.
+
+Only `OPENSEARCH_ADMIN_PASSWORD` and `OPENSEARCH_TRUSTSTORE_PASSWORD` are required
+besides the default administrative username. Set the optional pair
+`OPENSEARCH_APP_USER`/`OPENSEARCH_APP_PASSWORD` to create a generic application
+account. The account's allowed index patterns come from
+`OPENSEARCH_APP_INDEX_PATTERNS` (default `app-*`, comma-separated). It cannot
+administer the security configuration. Omit both fields for admin-only bootstrap.
+All passwords must contain 16..72 UTF-8 bytes. No OPENMETADATA_* values are read.
+
+For example, a logging application may use a service account scoped to `logs-*`,
+and another application can have a separate account/role provisioned through
+the OpenSearch Security API. The optional bootstrap account is only an initial
+account, not an automatic account for every future client. Keep client credentials
+and index scopes separate when sharing the instance. Cluster-wide template
+management is granted to the optional account only with an explicit `*` scope.
+
+TLS keys, private CA, Java truststore and password hashes stay under ignored
+`opensearch/runtime-creds/`. Existing material is validated and preserved. The
+private CA key is never uploaded to Kubernetes; no plaintext password is put in
+Helm values. Generated internal users replace the demo configuration on a fresh
+security index. Changing files does not reconfigure users in an existing data
+volume; later account/role changes require a separate planned Security API operation.
+
+## Optional OpenMetadata consumer
+
+This is a consumer configuration, not a deployment dependency of OpenSearch.
+In the OpenMetadata environment file, explicitly choose the endpoint and a
+provisioned account:
+
+```sh
+OPENMETADATA_SEARCH_HOST=opensearch.opensearch.svc.cluster.local
+OPENMETADATA_SEARCH_PORT=9200
+OPENMETADATA_SEARCH_SCHEME=https
+OPENMETADATA_SEARCH_USER=your-catalog-account
+OPENMETADATA_SEARCH_PASSWORD=
+OPENMETADATA_SEARCH_TRUSTSTORE_FILE=opensearch/runtime-creds/truststore.jks
+OPENMETADATA_SEARCH_TRUSTSTORE_PASSWORD=
+```
+
+Supply the password for that account and the password of the selected truststore.
+These are deliberately separate from the server's `OPENSEARCH_*` configuration.
+OpenMetadata can instead point at another supported OpenSearch service. It does
+not install or remove this service. To use the initial generic account for a
+dedicated catalog instance, give it the required catalog index scope before the
+first bootstrap (the catalog may need `*`); do not use the admin account as a client.
+
+If local files were produced by the earlier catalog-specific bootstrap, map the
+old account into `OPENSEARCH_APP_USER`/`OPENSEARCH_APP_PASSWORD` and set its original
+`*` scope. Existing `catalog.hash` and identities are read without replacing keys
+or hashes. A mismatch stops the deploy; old files are never silently overwritten.
 
 ## Operations and return to a previous version
 

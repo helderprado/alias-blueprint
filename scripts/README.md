@@ -10,7 +10,7 @@ a file, exported variables alone are sufficient.
 
 Run the relevant script with Bash, for example `bash jupyterhub/deploy.sh`.
 Deployment scripts validate all required inputs before contacting Kubernetes.
-External databases, users and S3 buckets must already exist. MLflow, OpenSearch and
+External databases, users and S3 buckets must already exist. Airflow, MLflow, OpenSearch and
 OpenMetadata create their namespaces after validation; other component namespaces
 must already exist.
 
@@ -64,5 +64,9 @@ limits of rollback for databases, CRDs and external Secrets.
 
 For catalog deployment and MLflow metadata ingestion setup, see `../openmetadata/README.md`.
 
-For the local search backend, deploy `opensearch/` before `openmetadata/`. The
-shared search account and private CA truststore are configured in `.env.example`.
+OpenSearch and Airflow are independently deployable services. Their component
+`.env.example` files contain only their own variables; select a component's local
+`.env` with `ALIAS_ENV_FILE`. OpenMetadata optionally consumes a search endpoint;
+set its `OPENMETADATA_SEARCH_*` credentials and truststore explicitly. It does not
+provision that service, and pipeline integration with Airflow stays disabled by
+default. See each component's README.

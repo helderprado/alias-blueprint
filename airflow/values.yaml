@@ -2426,7 +2426,7 @@ dags:
     # Annotations for dags PVC
     #annotations: {}
     # Enable persistent volume for storing dags
-    enabled: true
+    enabled: false
     # Volume size for dags
     #size: 5Gi
     # If using a custom storageClass, pass name here
@@ -2434,28 +2434,28 @@ dags:
     # access mode of the persistent volume
     #accessMode: ReadWriteOnce
     ## the name of an existing PVC to use
-    existingClaim: airflow-share-dag-pvc
+    existingClaim: ~
     ## optional subpath for dag volume mount
-    # subPath: "/dags"
+    # subPath: ""
   gitSync:
-    enabled: true
+    enabled: false
 
     # git repo clone url
     # ssh example: git@github.com:apache/airflow.git
     # https example: https://github.com/apache/airflow.git
-    repo: https://git.lais.huol.ufrn.br/fiscalizasus/airflow-dags.git
-    branch: main
-    rev: HEAD
+    repo: ""
+    branch: ""
+    rev: ""
     # The git revision (branch, tag, or hash) to check out, v4 only
-    ref: dev
+    ref: ""
     depth: 1
     # the number of consecutive failures allowed before aborting
     maxFailures: 0
     # subpath within the repo where dags are located
     # should be "" if dags are at repo root
-    subPath: "/dags"
+    subPath: ""
     #
-    credentialsSecret: git-credentials
+    credentialsSecret: ~
     #
     #
     # If you are using an ssh clone url, you can load

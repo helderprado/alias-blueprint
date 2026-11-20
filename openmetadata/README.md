@@ -13,13 +13,13 @@ in `.env.example`. You need:
 - An existing dedicated PostgreSQL database/user with permissions for the server's
   startup migrations. The default connection uses TLS; set DB_PARAMS for your
   installation deliberately. This script does not provision database infrastructure.
-- Deploy `../opensearch/` first for the bundled search backend. The default `.env`
-  endpoint is `opensearch.opensearch.svc.cluster.local`; the generated Java
-  truststore is mounted into the catalog. The dedicated catalog account is seeded
-  from `OPENMETADATA_SEARCH_USER` and `OPENMETADATA_SEARCH_PASSWORD`.
-  Alternatively, supply an external supported OpenSearch endpoint. For a public
-  CA, leave `OPENMETADATA_SEARCH_TRUSTSTORE_FILE` empty; for a private CA, supply a
-  truststore and its password. Do not disable certificate validation.
+- A supported OpenSearch endpoint with an account permitted to manage catalog
+  indexes. Optionally use the independent `../opensearch/` service: provision its
+  account through `OPENSEARCH_APP_*` or its Security API, then configure the
+  consumer's separate `OPENMETADATA_SEARCH_*` variables. Neither server reads the
+  other's settings. For a public CA, leave `OPENMETADATA_SEARCH_TRUSTSTORE_FILE`
+  empty; for a private CA, supply that file and
+  `OPENMETADATA_SEARCH_TRUSTSTORE_PASSWORD`. Do not disable certificate validation.
 - An OIDC provider/client, registered redirect URI `PUBLIC_URL/callback`, JWKS and
   discovery URLs. `ADMIN_PRINCIPAL` is your IdP user's principal before the domain.
   There is no seeded local administrative password and self-signup is disabled.
@@ -71,3 +71,10 @@ Use `../scripts/UPGRADES.md`. Startup migrations alter the external database;
 Helm rollback does not restore that database or search indexes. Retain and test
 matching backups before changing releases. `undeploy.sh` removes the chart only;
 it does not delete the namespace, external databases, indexes, or runtime Secrets.
+
+## Independent services
+
+OpenSearch and Airflow have their own deployment and environment templates and
+can be used for unrelated workloads without this catalog. The catalog does not
+create, configure or remove either service. `OPENSEARCH_APP_*` is an optional
+generic bootstrap account, not an implicit catalog identity.

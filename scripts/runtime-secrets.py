@@ -53,9 +53,9 @@ def build(component):
                 'MLFLOW_ARTIFACT_ROOT': 's3://' + required('MLFLOW_S3_BUCKET') + '/ML_MODELS'}}
     if component == 'opensearch':
         from opensearch_security import material, security_documents
-        directory, admin, catalog = material()
+        directory, admin, app = material()
         secret('opensearch-security', {name: json.dumps(document) for name, document in
-                                       security_documents(directory, admin, catalog).items()})
+                                       security_documents(directory, admin, app).items()})
         secrets.append({'apiVersion': 'v1', 'kind': 'Secret', 'type': 'Opaque',
                         'metadata': {'name': 'opensearch-tls', 'namespace': component},
                         'data': {name: base64.b64encode((directory / name).read_bytes()).decode()
@@ -134,7 +134,7 @@ def build(component):
             store = path.read_bytes()
             if not store:
                 raise ValueError('OpenMetadata search truststore file is empty')
-            secrets[1]['stringData']['search-truststore-password'] = required('OPENSEARCH_TRUSTSTORE_PASSWORD')
+            secrets[1]['stringData']['search-truststore-password'] = required('OPENMETADATA_SEARCH_TRUSTSTORE_PASSWORD')
             secrets.append({'apiVersion': 'v1', 'kind': 'Secret', 'type': 'Opaque',
                 'metadata': {'name': 'openmetadata-search-tls', 'namespace': component},
                 'data': {'truststore.jks': base64.b64encode(store).decode()}})
@@ -156,11 +156,25 @@ def build(component):
             valid = False
         if not valid:
             raise ValueError('AIRFLOW_FERNET_KEY must be a URL-safe base64 encoding of 32 bytes')
+        repo = os.environ.get('AIRFLOW_DAGS_GIT_REPO') or ''
+        commit = os.environ.get('AIRFLOW_DAGS_GIT_REF') or ''
+        if repo:
+            parsed_repo = urlsplit(repo)
+            if parsed_repo.scheme in ('http', 'https') and (parsed_repo.username or parsed_repo.password):
+                raise ValueError('DAG Git URL must not contain credentials; use AIRFLOW_GIT_CREDENTIALS_SECRET')
+            import re
+            if not re.fullmatch(r'[a-fA-F0-9]{40}', commit):
+                raise ValueError('AIRFLOW_DAGS_GIT_REF must be an exact 40-character Git commit when a DAG repository is set')
+        dags_pvc = os.environ.get('AIRFLOW_DAGS_PVC') or ''
         secret('airflow-fernet', {'fernet-key': fernet})
         secret('airflow-webserver', {'webserver-secret-key': required('AIRFLOW_WEBSERVER_SECRET_KEY')})
         secret('airflow-metadata', {'connection': required('AIRFLOW_DATABASE_URL')})
         return secrets, {'fernetKeySecretName': 'airflow-fernet', 'webserverSecretKeySecretName': 'airflow-webserver',
                          'data': {'metadataSecretName': 'airflow-metadata'}, 'postgresql': {'enabled': False},
+                         'dags': {'persistence': {'enabled': bool(dags_pvc), 'existingClaim': dags_pvc or None},
+                                  'gitSync': {'enabled': bool(repo), 'repo': repo, 'ref': commit, 'rev': commit,
+                                      'subPath': os.environ.get('AIRFLOW_DAGS_SUBPATH') or '',
+                                      'credentialsSecret': os.environ.get('AIRFLOW_GIT_CREDENTIALS_SECRET') or None}},
                          'createUserJob': {'useHelmHooks': False, 'applyCustomEnv': False, 'ttlSecondsAfterFinished': 300},
                          'migrateDatabaseJob': {'useHelmHooks': False, 'applyCustomEnv': False, 'ttlSecondsAfterFinished': 300}}
     if component == 'superset':
@@ -176,7 +190,7 @@ def build(component):
 def main():
     component, output = sys.argv[1:]
     secrets, values = build(component)  # Validate everything before any cluster request.
-    if component in ('mlflow', 'openmetadata', 'opensearch'):
+    if component in ('mlflow', 'openmetadata', 'opensearch', 'airflow'):
         namespace = {'apiVersion': 'v1', 'kind': 'Namespace', 'metadata': {'name': component}}
         subprocess.run(['kubectl', 'apply', '-f', '-'], input=json.dumps(namespace), text=True, check=True)
     # External Secrets are outside Helm revision history. Do not change them during

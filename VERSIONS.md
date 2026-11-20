@@ -170,9 +170,19 @@ committed. See `scripts/prepare-openmetadata-chart.py`.
 
 ## OpenSearch backend addition
 
-The catalog search backend now has chart `2.32.0`, server `2.19.1`, immutable server
+The independent OpenSearch service now has chart `2.32.0`, server `2.19.1`, immutable server
 and busybox init-image pins, a persistent single-node footprint and explicit TLS
 and internal-account bootstrap. The official chart package SHA-256 was checked;
 the server digest was read from its manifest metadata without pulling/running it.
 See `opensearch/README.md`. This is a new deployment component, not a measurement
 of the original study environment.
+
+## Independent service configuration
+
+OpenSearch consumes only `OPENSEARCH_*` variables. Its generic bootstrap client
+account is optional and supports explicit index scopes. OpenMetadata has a separate
+search endpoint, account and truststore configuration and may use an external
+service. Airflow consumes its own `AIRFLOW_*` settings, creates its namespace and
+starts without a private DAG repository or pre-existing DAG claim. DAG Git delivery
+is optional and requires an explicit commit. This configuration change does not
+change any pinned application, chart or image version.
