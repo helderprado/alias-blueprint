@@ -133,6 +133,67 @@ it during bootstrap. Python code already baked into locked upstream images is
 fixed by the image digest rather than re-resolved by our scripts. Regenerating a
 lock is a deliberate maintenance action, not part of deployment.
 
+## Repository audit
+
+The inventory was compared with the committed manifests, Dockerfiles, installers
+and locks: **13 charts, 39 source-image mappings (38 distinct immutable image
+references), and four application Python locks**. Every chart/image table entry
+and each Python package count and lock-file SHA-256 above matches its source.
+The nine-layer component/path/provisioning/dependency inventory is in `README.md`,
+From the repository root, inspect the declared versions without querying a
+release service:
+
+```sh
+# K3s / Helm defaults and exact-release validation.
+rg -n 'K3S_VERSION=|INSTALL_K3S_VERSION|DESIRED_VERSION=|TAG=' install-k3s.sh get_helm.sh
+# Chart releases, application versions, host OS prerequisite and Python target.
+rg -n '"(helm|k3s|version|appVersion|host_baseline|distribution|architecture|python_tools)"' versions.lock.json
+# Image inputs and committed digest overrides; split image fields need the overrides.
+rg -n '(^FROM |^ARG base_img=|image:|name:|repository:|tag:|@sha256:)' \
+  -g Dockerfile -g '*.yaml' -g '*.json' -g '!airflow/repo/index.yaml' \
+  jupyterhub airflow docker-images databases pgadmin versions \
+  spark-operator trino pinot opensearch openmetadata mlflow superset registry homepage
+# Application and tool dependency pins.
+rg -n '^[A-Za-z0-9_.-]+(\[[^]]+\])?==' \
+  scripts/requirements.txt docker-images/etl-base-image/requirements.txt \
+  jupyterhub/images/hub/requirements.txt airflow/image/requirements.txt superset/requirements.lock
+```
+
+The following check found **zero** floating `latest` image tags in the repository's
+manifest, image-override, installer, Dockerfile and example-configuration sources:
+
+```sh
+if rg -n '(:latest\b|\btag["\x27]?[[:space:]]*:[[:space:]]*["\x27]?latest\b)' \
+  -g '*.yaml' -g '*.yml' -g '*.json' -g '*.sh' -g Dockerfile -g '*.example' .; then
+  echo 'FAIL: floating latest tag found' >&2
+  exit 1
+else
+  status=$?
+  if [ "$status" -ne 1 ]; then exit "$status"; fi
+  echo 'PASS: latest image tags = 0'
+fi
+```
+
+Text searches alone cannot establish effective Helm images: chart defaults,
+hooks and values merge together. The existing version tests were also run with
+all 13 cached chart archives and a local Helm binary, without network or cluster
+access. All three tests passed, including archive SHA-256 checks, rendered
+container/hook digest checks, rejection of unknown floating images and Python
+lock/Superset bootstrap consistency. To repeat with locally available archives
+named `COMPONENT.tgz` and the synthetic runtime overrides where needed:
+
+```sh
+ALIAS_CHARTS_DIR=/path/to/verified-charts ALIAS_HELM=/path/to/helm \
+  python3 -m unittest discover -s scripts/tests -p test_versions.py -v
+```
+
+Without both environment variables, the chart-rendering test is skipped. The
+audit validates the selected versions in repository deployment defaults. Host
+installation is external; the tools' Python target is recorded but not enforced
+by a Python installer. The K3s bootstrap script is downloaded from `get.k3s.io`
+and is not itself content-pinned, although the installed K3s release is exact.
+Explicit operator overrides and user-submitted workloads need their own review.
+
 ## Configuration and verification limits
 
 Entry scripts load the repository-root `.env` with `scripts/env.sh`; an exported
@@ -140,7 +201,7 @@ Entry scripts load the repository-root `.env` with `scripts/env.sh`; an exported
 exports. Required credentials are validated before external Secrets and Helm are
 invoked. See `scripts/README.md`.
 
-Local verification covers nine chart renders, hook/container image digests,
+Local verification covers 13 chart renders, hook/container image digests,
 Python lock structure and hashes recorded by the resolver, shell syntax, and
 automated tests. An additional online dry-run installation of the Python locks
 was not authorized; full image builds and dependency compatibility in the parent
