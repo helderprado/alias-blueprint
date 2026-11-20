@@ -111,8 +111,8 @@ def security_documents(directory, admin, catalog):
                 'http_authenticator': {'type': 'basic', 'challenge': True},
                 'authentication_backend': {'type': 'intern'}}}}}},
         'internal_users.yml': {'_meta': meta('internalusers'),
-            admin: {'hash': (directory / 'admin.hash').read_text(), 'reserved': True, 'backend_roles': ['search_admin']},
-            catalog: {'hash': (directory / 'catalog.hash').read_text(), 'reserved': True, 'backend_roles': ['catalog_indexer']}},
+            admin: {'hash': (directory / 'admin.hash').read_text(), 'reserved': False, 'backend_roles': ['search_admin']},
+            catalog: {'hash': (directory / 'catalog.hash').read_text(), 'reserved': False, 'backend_roles': ['catalog_indexer']}},
         'roles.yml': {'_meta': meta('roles'),
             'bootstrap_admin': {'reserved': True, 'cluster_permissions': ['*'],
                 'index_permissions': [{'index_patterns': ['*'], 'allowed_actions': ['*']}],
@@ -120,8 +120,8 @@ def security_documents(directory, admin, catalog):
             'catalog_indexes': {'reserved': True, 'cluster_permissions': ['cluster_composite_ops', 'cluster_monitor', 'indices:admin/template/*'],
                 'index_permissions': [{'index_patterns': ['*'], 'allowed_actions': ['indices_all']}]}},
         'roles_mapping.yml': {'_meta': meta('rolesmapping'),
-            'bootstrap_admin': {'reserved': True, 'backend_roles': ['search_admin']},
-            'catalog_indexes': {'reserved': True, 'backend_roles': ['catalog_indexer']}},
+            'bootstrap_admin': {'reserved': False, 'backend_roles': ['search_admin']},
+            'catalog_indexes': {'reserved': False, 'backend_roles': ['catalog_indexer']}},
     }
 
 
