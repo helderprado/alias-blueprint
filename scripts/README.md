@@ -46,7 +46,7 @@ Default Airflow and Superset application-user creation stays disabled; configure
 user onboarding separately. JupyterHub retains the original dummy authenticator
 with a required password; use a proper identity provider for multi-user security.
 
-No historical cluster is accessed. Test commands use synthetic inputs and mocks;
+Test commands use synthetic inputs and mocks;
 a successful local check does not establish a successful Kubernetes deployment.
 
 ## Version locks

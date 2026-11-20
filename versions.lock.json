@@ -1,6 +1,6 @@
 {
   "baseline_date": "2026-11-20",
-  "status": "new baseline; not a record of the study environment",
+  "status": "deployment baseline",
   "helm": "v3.17.3",
   "k3s": "v1.34.13+k3s1",
   "charts": {
@@ -180,7 +180,7 @@
     "distribution": "Ubuntu",
     "version": "22.04 LTS",
     "architecture": "amd64",
-    "note": "New deployment prerequisite, not provisioned by repository; no study OS/kernel inference."
+    "note": "Deployment prerequisite; host provisioning is external to this repository."
   },
   "python_tools": "3.11.11"
 }

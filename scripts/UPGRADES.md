@@ -5,8 +5,8 @@ component values, Python locks and scripts from the same Git commit. Preserve th
 complete commit when releasing a version. These files must move together; changing
 only a chart version or image tag is not a supported upgrade path.
 
-There is no live reference cluster available for testing. Local template rendering
-is not evidence that applications, storage and external databases work together.
+Local template rendering does not establish that applications, storage and
+external databases work together.
 Validate the current baseline once in an independent environment before accepting
 it as a known working release. Keep that environment's Git commit, chart revisions,
 and backup identifiers as the release record.

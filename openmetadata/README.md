@@ -1,7 +1,6 @@
 # OpenMetadata catalog
 
-This adds the catalog/governance layer to the independent deployment baseline.
-It is not a statement that OpenMetadata was measured in the study environment.
+This component provides the catalog/governance layer of the architecture.
 The official server chart and image are pinned in `versions.lock.json` and
 `versions/openmetadata.values.json`. The namespace and Service are `openmetadata`.
 

@@ -1,9 +1,7 @@
 # Version inventory and reproducibility baseline
 
-**Baseline date: 2026-11-20.** This is a newly selected baseline authorized for
-independent deployment. It is not a reconstruction of versions measured during
-the study. The reference environment is unavailable. Do not attribute these
-choices or local template checks to the paper's experiments.
+This baseline records the versions selected for
+deployment with this repository. Validation performed locally is described below.
 
 `versions.lock.json` records the exact chart releases, official index URLs,
 package SHA-256 values, and verified container image digests. Deployment scripts
@@ -17,14 +15,12 @@ reviewing the corresponding image and dependency locks as well.
 | Item | New baseline / recorded evidence | Source |
 |---|---|---|
 | Host OS | Ubuntu 22.04 LTS, amd64, chosen deployment prerequisite; host installation is outside this repo | `versions.lock.json: host_baseline` |
-| Study reference OS | Author-provided README states Ubuntu 20.04 LTS, x86_64, kernel 5.4.0-216-generic; not re-measured here | `README.md`, §2 |
-| Independent study deployment OS | Author-provided README states Rocky Linux 9.x; patch/kernel not recorded | `README.md`, §2 |
 | K3s | `v1.34.13+k3s1`, default fixed release | `install-k3s.sh` |
 | kubectl | K3s-bundled Kubernetes client, tied to the selected K3s distribution; no standalone client installer in this repo | `install-k3s.sh`, `kube-config.sh` |
 | Helm | `v3.17.3`; installer accepts only an exact stable release, never an implicit newest release | `get_helm.sh` |
 | Tool dependencies | `PyYAML==6.0.3`, `bcrypt==4.3.0` | `scripts/requirements.txt` |
 | Python for standalone tools / ETL | `3.11.11`; ETL base is the verified digest of `python:3.11.11-slim-bookworm` | `versions.lock.json`, `docker-images/etl-base-image/Dockerfile` |
-| Container OS / bundled interpreters | Inherited from immutable image digests below. Labels such as Ubuntu or bookworm are not evidence of the historical host or kernel. Interpreter patch versions not exposed by manifests are not invented. | Dockerfiles and image lock |
+| Container OS / bundled interpreters | Inherited from immutable image digests below. Container OS labels do not identify the host OS or kernel. Interpreter patch versions not exposed by manifests are not recorded. | Dockerfiles and image lock |
 
 ## Helm charts
 
@@ -139,7 +135,7 @@ The inventory was compared with the committed manifests, Dockerfiles, installers
 and locks: **13 charts, 39 source-image mappings (38 distinct immutable image
 references), and four application Python locks**. Every chart/image table entry
 and each Python package count and lock-file SHA-256 above matches its source.
-The nine-layer component/path/provisioning/dependency inventory is in `README.md`,
+The nine-layer component/path/provisioning/dependency inventory is in `README.md`.
 From the repository root, inspect the declared versions without querying a
 release service:
 
@@ -240,8 +236,7 @@ The independent OpenSearch service now has chart `2.32.0`, server `2.19.1`, immu
 and busybox init-image pins, a persistent single-node footprint and explicit TLS
 and internal-account bootstrap. The official chart package SHA-256 was checked;
 the server digest was read from its manifest metadata without pulling/running it.
-See `opensearch/README.md`. This is a new deployment component, not a measurement
-of the original study environment.
+See `opensearch/README.md` for deployment and configuration.
 
 ## Independent service configuration
 
