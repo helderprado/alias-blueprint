@@ -1,9 +1,9 @@
-# Spark jobs on Kubernetes
+# Apache Spark jobs on Kubernetes
 
 The independent Spark Operator release watches **namespace `spark`**. Its
 controller runs in `spark-operator`; drivers, executors, credentials and optional
 shared-file claims run in `spark`. This provides batch compute, not a second
-always-running Spark master/worker cluster. Spark, its operator and the image
+always-running Spark master/worker cluster. Spark, the Spark Operator and the image
 recipe retain their Apache-2.0 licensing; JDBC and other dependencies retain their
 own licenses. MinIO remains a separate optional AGPLv3 service.
 
@@ -27,12 +27,12 @@ files are trusted Bash files; file assignments override exported variables.
 Scripts resolve repository paths independently of the current directory.
 
 The default job uses the committed immutable Spark `3.5.0` Python image. The
-operator chart remains `1.3.2`, with image `v1beta2-1.5.0-3.5.0` fixed by digest.
+Spark Operator chart remains `1.3.2`, with image `v1beta2-1.5.0-3.5.0` fixed by digest.
 The admission webhook is enabled because the example uses ConfigMap mounts and
 optional Secret references. The Kubernetes API server must be able to reach the
 webhook Service. This baseline has not been validated against a live K3s cluster.
 
-Preview the operator using the locked chart downloaded by Helm:
+Preview the Spark Operator using the locked chart downloaded by Helm:
 
 ```sh
 bash spark-operator/deploy.sh --render
@@ -40,12 +40,12 @@ bash spark-operator/deploy.sh --render
 
 For fully offline rendering, set `SPARK_OPERATOR_CHART` in the selected environment
 to an absolute path to the cached `spark-operator-1.3.2.tgz` archive. Both deployment
-and preview verify its SHA-256 against `versions.lock.json`. The operator preview
+and preview verify its SHA-256 against `versions.lock.json`. The Spark Operator preview
 renders only the Helm release; `spark/setup.sh --render` shows workload resources.
 
 ## Bootstrap and permissions
 
-After reviewing the previews, install the operator and prepare the workload
+After reviewing the previews, install the Spark Operator and prepare the workload
 namespace in one command:
 
 ```sh
@@ -55,7 +55,7 @@ kubectl -n spark get sparkapplications,pods
 kubectl -n spark get sparkapplication alias-spark-smoke -o yaml
 ```
 
-The operator installer validates configuration and the chart before setup, then
+The Spark Operator installer validates configuration and the chart before setup, then
 uses `helm upgrade --install --atomic --timeout 10m --history-max 20`. The setup
 step is independently rerunnable with `bash spark/setup.sh`. Its namespace,
 ServiceAccount, Role/RoleBinding, quotas and smoke-code ConfigMap use declarative
@@ -76,7 +76,7 @@ stops before writes. Inspect it with `kubectl get clusterrolebinding spark-role
 revoke the obsolete grant before retrying. The new scripts do not silently
 delete permissions or migrate running workloads. The retained
 `spark-operator/database-secrets.yaml` path is an empty Kubernetes List directing
-operators to the runtime workflow; it no longer creates unusable empty credentials.
+administrators to the runtime workflow; it no longer creates unusable empty credentials.
 
 ## Resource budget
 
@@ -86,7 +86,7 @@ The defaults bound this smoke check's driver and one executor:
 |---|---|---|
 | Driver | 500m / 1 core | 512m / 384m |
 | Each executor (one by default) | 500m / 1 core | 1g / 384m |
-| Operator, separate namespace | 100m / 500m | 256Mi request / 512Mi limit |
+| Spark Operator, separate namespace | 100m / 500m | 256Mi request / 512Mi limit |
 
 `SPARK_DRIVER_*`, `SPARK_EXECUTOR_*` and `SPARK_EXECUTORS` configure the job.
 Dynamic allocation is disabled. Kubernetes Pod memory includes Spark memory plus

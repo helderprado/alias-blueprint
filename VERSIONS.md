@@ -31,18 +31,18 @@ were downloaded to temporary storage and checked against index SHA-256 values.
 | Component | Chart release | Chart appVersion | Official index |
 |---|---|---|---|
 | trino | `1.45.0` | `484` | [index](https://trinodb.github.io/charts/index.yaml) |
-| pinot | `1.0.0` | `1.0.0` | [index](https://raw.githubusercontent.com/apache/pinot/master/helm/index.yaml) |
-| opensearch | `2.32.0` | `2.19.1` | [index](https://opensearch-project.github.io/helm-charts/index.yaml) |
-| openmetadata | `2.0.9` | `2.0.9` | [index](https://helm.open-metadata.org/index.yaml) |
-| airflow | `1.16.0` | `2.10.5` | [index](https://airflow.apache.org/index.yaml) |
+| Apache Pinot | `1.0.0` | `1.0.0` | [index](https://raw.githubusercontent.com/apache/pinot/master/helm/index.yaml) |
+| OpenSearch | `2.32.0` | `2.19.1` | [index](https://opensearch-project.github.io/helm-charts/index.yaml) |
+| OpenMetadata | `2.0.9` | `2.0.9` | [index](https://helm.open-metadata.org/index.yaml) |
+| Apache Airflow | `1.16.0` | `2.10.5` | [index](https://airflow.apache.org/index.yaml) |
 | cert-manager | `v1.13.3` | `v1.13.3` | [index](https://charts.jetstack.io/index.yaml) |
-| homepage | `2.1.0` | `v1.2.0` | [index](https://jameswynn.github.io/helm-charts/index.yaml) |
-| jupyterhub | `3.2.1` | `4.0.2` | [index](https://jupyterhub.github.io/helm-chart/index.yaml) |
-| mlflow | `1.11.7` | `3.16.0` | [index](https://community-charts.github.io/helm-charts/index.yaml) |
-| rancher | `2.15.3` | `v2.15.3` | [index](https://releases.rancher.com/server-charts/stable/index.yaml) |
-| registry | `2.2.3` | `2.8.1` | [index](https://twuni.github.io/docker-registry.helm/index.yaml) |
-| spark-operator | `1.3.2` | `v1beta2-1.5.0-3.5.0` | [index](https://kubeflow.github.io/spark-operator/index.yaml) |
-| superset | `0.14.2` | `4.1.2` | [index](https://apache.github.io/superset/index.yaml) |
+| Homepage | `2.1.0` | `v1.2.0` | [index](https://jameswynn.github.io/helm-charts/index.yaml) |
+| JupyterHub | `3.2.1` | `4.0.2` | [index](https://jupyterhub.github.io/helm-chart/index.yaml) |
+| MLflow | `1.11.7` | `3.16.0` | [index](https://community-charts.github.io/helm-charts/index.yaml) |
+| Rancher | `2.15.3` | `v2.15.3` | [index](https://releases.rancher.com/server-charts/stable/index.yaml) |
+| Private registry | `2.2.3` | `2.8.1` | [index](https://twuni.github.io/docker-registry.helm/index.yaml) |
+| Spark Operator | `1.3.2` | `v1beta2-1.5.0-3.5.0` | [index](https://kubeflow.github.io/spark-operator/index.yaml) |
+| Apache Superset | `0.14.2` | `4.1.2` | [index](https://apache.github.io/superset/index.yaml) |
 
 Each deployment passes `--version` and a committed `versions/*.values.json`
 override. These image overrides pin hooks as well as normal workloads, because
@@ -101,9 +101,10 @@ a tag. Digests do not imply vulnerability, compatibility, or license review.
 | `spark:3.5.0-scala2.12-java17-python3-ubuntu` | `spark@sha256:edc304196cbd7619933658d6e01b082b12bcef45ba96223d4a56584c0b4b1fcf` |
 | `spark:3.5.0-scala2.12-java17-ubuntu` | `spark@sha256:1c72a3d4f0a9634f09bc0d7d6a2fc03653b0bfbb9f34bca2ddf0a4a726abbd49` |
 
-The unused private Hub image was replaced with the official locked Hub image;
-the existing Kubernetes hook uses its `kubernetes_asyncio` client. Custom Hub
-and Airflow Dockerfiles remain available but are not the default deployed image.
+The unused private image for JupyterHub's Hub was replaced with the locked
+official image; the existing Kubernetes hook uses its `kubernetes_asyncio` client.
+Custom Dockerfiles for JupyterHub's Hub and Airflow remain available but are not
+the default deployed images.
 Spark's base now explicitly includes Python. Its recipe no longer downloads
 Python through a moving PPA, upgrades pip/setuptools, or copies absent local
 PySpark directories. Existing Maven artifact versions remain explicit:
@@ -121,7 +122,7 @@ Python 3.10; the other application locks target Python 3.11.
 | Consumer | Lock file | Exact package pins | Lock SHA-256 |
 |---|---|---|---|
 | ETL | `docker-images/etl-base-image/requirements.txt` | 8 | `12cfd4ee6e21515fcae24311bbd24f4cc892eb77500e78a4fa4de1b1f1142576` |
-| Custom Hub | `jupyterhub/images/hub/requirements.txt` | 28 | `65ff314c98c9985f990ad6a9b32666d9ec47325f0ce6c2d847415a196ba1c7db` |
+| Custom JupyterHub Hub | `jupyterhub/images/hub/requirements.txt` | 28 | `65ff314c98c9985f990ad6a9b32666d9ec47325f0ce6c2d847415a196ba1c7db` |
 | Custom Airflow | `airflow/image/requirements.txt` | 171 | `5088606e28b89fa62138ab836f9d334d50c8b29d87fd5ab04a92fc43084f3bcc` |
 | Superset extensions | `superset/requirements.lock` | 15 | `eda761cd52efd1abe6f6d7c067355340815bab3e5d414d1a57075931b9de7be7` |
 
@@ -189,7 +190,7 @@ audit validates the selected versions in repository deployment defaults. Host
 installation is external; the tools' Python target is recorded but not enforced
 by a Python installer. The K3s bootstrap script is downloaded from `get.k3s.io`
 and is not itself content-pinned, although the installed K3s release is exact.
-Explicit operator overrides and user-submitted workloads need their own review.
+Explicit administrator overrides and user-submitted workloads need their own review.
 
 ## Configuration and verification limits
 
@@ -222,7 +223,7 @@ digest, added after the original baseline. Its chart package SHA-256 was checked
 The image digest was obtained from public manifest metadata after an anonymous
 pull limit; the full image was not downloaded or run. PostgreSQL, OpenSearch and
 OIDC are external prerequisites, not silently provisioned dependencies. Ingestion
-pipeline deployment is disabled; adding MLflow catalog ingestion requires its
+deployment of OpenMetadata ingestion DAGs through Airflow is disabled; adding MLflow catalog ingestion requires its
 explicit connector workflow as described in `openmetadata/README.md`.
 
 OpenMetadata's upstream Helm test contains an unversioned busybox image. Its deploy
@@ -266,12 +267,12 @@ README and `.env.example` files for access and persistence limits.
 Trino deployment verifies the official chart SHA-256 and excludes only the
 upstream CI connection-test template, whose demo credentials/certificate names
 do not match this authenticated profile. Application templates are unchanged.
-See `scripts/prepare-trino-chart.py`; the operator SQL smoke query is in its README.
+See `scripts/prepare-trino-chart.py`; the administrator SQL smoke query is in its README.
 
 ## GlusterFS storage profile
 
 `glusterfs/install-node.sh` installs the exact host package revisions recorded
-under `glusterfs.packages`, including the matching Gluster libraries. These
+under `glusterfs.packages`, including the matching GlusterFS libraries. These
 revisions were checked against official Ubuntu package metadata: [GlusterFS](https://packages.ubuntu.com/jammy-updates/glusterfs-server),
 [NFS-Ganesha](https://packages.ubuntu.com/jammy-updates/nfs-ganesha),
 [FSAL_GLUSTER](https://packages.ubuntu.com/jammy-updates/nfs-ganesha-gluster) and
@@ -284,12 +285,12 @@ The optional volume/export/PV scripts use NFSv4.1 and the standard Kubernetes
 NFS volume source. They add no chart or container image and do not use the
 removed GlusterFS Kubernetes volume driver. Three replicas are the default;
 one node is an explicit development option. Consumer defaults and the existing
-chart/image locks remain unchanged until the operator selects this profile.
+chart/image locks remain unchanged until the administrator selects this profile.
 
 Offline tests cover configuration validation, generated PV/claim bindings,
 NFS access restrictions, rejection of conflicting/unmanaged resources before
 writes, existing-volume reuse, and inventory failure handling. No package
-installation, Gluster cluster, NFS mount, workload I/O or failover has been run
+installation, GlusterFS cluster, NFS mount, workload I/O or failover has been run
 for this addition. Gateway high availability and data migration are outside
 this profile. See `glusterfs/README.md` for provisioning and verification.
 
@@ -311,14 +312,14 @@ chart defaults to a December 2024 server image. It is not installed by this
 profile. The local chart supplies dedicated persistent storage, health probes,
 NetworkPolicy and bucket-scoped bootstrap accounts without inheriting that image.
 The October 2025 server release includes a session-policy security fix and
-instructs operators to build containers from source.
+instructs administrators to build containers from source.
 
 `versions.lock.json: minio` records both downloaded source archives' SHA-256
 values, verified tag-to-commit mappings, the Go `1.24.8-bookworm` builder digest,
 and the existing Python `3.11.11-slim-bookworm` runtime digest. `minio/Dockerfile`
 checks the source archives and Go modules and retains corresponding sources and
 license files. No output-image digest is invented: deployment requires
-`MINIO_IMAGE` with the actual digest of the operator's built and published image.
+`MINIO_IMAGE` with the actual digest of the administrator's built and published image.
 Server and bootstrap jobs use that same immutable image.
 
 Offline validation covers both PVC modes and HTTP/TLS chart rendering, credential
@@ -336,8 +337,8 @@ verified end-to-end deployments. Helm rollback cannot undo bucket/IAM state.
 
 ## Spark workload standardization
 
-The existing Spark `3.5.0` image and operator chart `1.3.2` are retained. The
-operator now watches only `spark`, uses its admission webhook, has explicit
+The existing Spark `3.5.0` image and Spark Operator chart `1.3.2` are retained. The
+Spark Operator now watches only `spark`, uses its admission webhook, has explicit
 resources, and verifies the chart archive before installation. Chart-created
 workload accounts/RBAC are disabled; `spark/setup.sh` applies explicit namespace
 RBAC, a shared job resource budget and optional immutable runtime Secrets. The

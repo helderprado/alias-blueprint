@@ -34,7 +34,7 @@ Ingress/LoadBalancer. Configure reviewed Pinot authentication/TLS or a trusted
 security gateway before extending that trust boundary. This profile does not
 claim to implement Pinot TLS, per-user authorization or multi-tenant isolation.
 
-For an operator's local controller tunnel:
+For an administrator's local controller tunnel:
 
 ```sh
 kubectl -n pinot port-forward service/pinot-controller 9000:9000

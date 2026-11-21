@@ -6,6 +6,22 @@ for intelligent healthcare auditing.
 - **License:** Apache 2.0 (see `LICENSE`)
 - **Component versions:** see `VERSIONS.md`
 
+## Terminology
+
+The documentation uses the following conventions:
+
+| Term | Meaning and spelling |
+|---|---|
+| Spark Operator | The named Kubernetes component that manages Spark jobs. Use the full name in prose. |
+| operator | A generic Kubernetes controller that reconciles application resources. For the person managing a deployment, use administrator. An Airflow Operator is a task implementation, not a Kubernetes operator or a user account. |
+| DAG / DAGs | Directed acyclic graph (plural DAGs). In Airflow, the definition of tasks and their dependencies for a workflow. Use uppercase DAG and the plural DAGs. |
+| pipeline | An end-to-end data-processing flow. A pipeline can span Airflow DAGs, Spark jobs and other services; it is not a synonym for a DAG. OpenMetadata ingestion workflows are identified explicitly. |
+| big data | Write as two lowercase words in prose. |
+| Tool names | Apache Spark, Spark Operator, Apache Airflow, JupyterHub, MLflow, OpenMetadata, OpenSearch, Trino, Apache Pinot, Apache Superset, MinIO, GlusterFS, NFS-Ganesha, PostgreSQL, MySQL, pgAdmin, Homepage, Rancher, K3s, Helm and Kubernetes. Spark, Airflow, Pinot and Superset are the short forms after the full name is introduced. |
+
+Paths, commands, API fields, chart/release names, image references and environment
+variables retain their exact spelling and case, even when they differ from prose.
+
 ## 1. What this repository contains
 
 The inventory below maps each of the architecture's nine layers to the
@@ -18,13 +34,13 @@ and validation limits.
 |---|---|---|---|---|
 | 1 | Infrastructure and security: K3s, Rancher, RBAC | `install-k3s.sh`, `k3s-config.yaml`, `kube-config.sh`, `install-rancher.sh`; component `*/service-account*.yaml` files | Shell installs K3s; Helm installs cert-manager and optional Rancher; `kubectl apply` for RBAC manifests | Host OS and network; cluster access; Helm for Rancher, which uses cert-manager. Component service accounts and role bindings must be applied separately where provided. |
 | 2 | Storage: GlusterFS, persistent volumes and S3-compatible object storage | `glusterfs/`, optional `minio/`; component `persistent-volume.yaml` files, `databases/*/deploy.yaml` and `*/values.yaml` | Bash installs pinned GlusterFS/NFS-Ganesha host packages and creates the volume/export; `glusterfs/deploy.sh` applies static NFS PVs/PVCs; Helm creates other chart-managed PVCs | Existing hosts and mounted brick filesystems; three storage nodes for the replicated profile, a stable NFS gateway and NFS client packages on K3s nodes. Local PV examples remain optional alternatives. S3 endpoints/buckets may be external or provided by the independent MinIO profile. |
-| 3 | Processing and AI: Spark, Spark Operator, ETL images | `spark/`, `spark-operator/`, `docker-images/pyspark-aws-psql/`, `docker-images/etl-base-image/`; [Spark procedure](spark/README.md) | Helm installs the operator/CRDs; `spark/setup.sh` prepares namespace-scoped driver RBAC, optional runtime Secrets and aggregate quotas; `spark/submit.sh` creates the bounded smoke job | K3s, Helm, webhook connectivity and locked workload images. MinIO/external S3, JDBC and a read-only shared PVC are optional. The smoke check is supplied; domain ETL pipelines and trained models must be supplied separately. |
+| 3 | Processing and AI: Apache Spark, Spark Operator, ETL images | `spark/`, `spark-operator/`, `docker-images/pyspark-aws-psql/`, `docker-images/etl-base-image/`; [Spark procedure](spark/README.md) | Helm installs the Spark Operator and its CRDs; `spark/setup.sh` prepares namespace-scoped driver RBAC, optional runtime Secrets and aggregate quotas; `spark/submit.sh` creates the bounded smoke job | K3s, Helm, webhook connectivity and locked workload images. MinIO/external S3, JDBC and a read-only shared PVC are optional. The smoke check is supplied; domain ETL pipelines and trained models must be supplied separately. |
 | 4 | Analysis and development: JupyterHub | `jupyterhub/deploy.sh`, `jupyterhub/values.yaml`, `jupyterhub/persistent-volume.yaml`, `jupyterhub/service-account*.yaml`, `jupyterhub/images/hub/` | Helm via `deploy.sh`; `kubectl apply` for namespace, static storage and service account/RBAC; optional custom image build | K3s, Helm, `JUPYTERHUB_*` runtime Secret; existing `nfs-share-pvc`, service account `spark`, and referenced pull secret `regcred`. Spark namespace/RBAC is needed for notebook-submitted Spark workloads. |
-| 5 | Workflow orchestration: Airflow | `airflow/deploy.sh`, `airflow/values.yaml`, `airflow/persistent-volume.yaml`, `airflow/image/` | Helm via `deploy.sh`, which prepares namespace and runtime Secrets; optional static PVC / custom image build | K3s, Helm, external metadata database, Fernet and webserver keys. Optional DAG Git source requires an exact commit; optional DAG PVC must exist. Spark integration requires separately supplied DAGs and Spark resources. |
+| 5 | Workflow orchestration: Apache Airflow | `airflow/deploy.sh`, `airflow/values.yaml`, `airflow/persistent-volume.yaml`, `airflow/image/` | Helm via `deploy.sh`, which prepares namespace and runtime Secrets; optional static PVC / custom image build | K3s, Helm, external metadata database, Fernet and webserver keys. Optional DAG Git source requires an exact commit; optional DAG PVC must exist. Spark integration requires separately supplied DAGs and Spark resources. |
 | 6 | Model lifecycle: MLflow tracking and registry | `mlflow/deploy.sh`, `mlflow/values.yaml`, `mlflow/README.md` | Helm via `deploy.sh`, which prepares namespace and runtime Secret | K3s, Helm, existing MySQL database/user and writable S3-compatible bucket/endpoint; `MLFLOW_*` configuration. Neither database nor bucket is created by this script. |
-| 7 | Catalog and governance: OpenMetadata | `openmetadata/gen-keys.sh`, `openmetadata/deploy.sh`, `openmetadata/values.yaml`, `openmetadata/README.md` | Shell generates local JWT keys; Helm via `deploy.sh` prepares namespace and Secrets, verifies the chart and pins its test image | K3s, Helm, dedicated PostgreSQL database, OpenSearch endpoint/account, OIDC provider and JWT/Fernet keys. `opensearch/` can supply the search endpoint. MLflow ingestion is optional and separately configured; automatic Airflow pipeline deployment is disabled. |
+| 7 | Catalog and governance: OpenMetadata | `openmetadata/gen-keys.sh`, `openmetadata/deploy.sh`, `openmetadata/values.yaml`, `openmetadata/README.md` | Shell generates local JWT keys; Helm via `deploy.sh` prepares namespace and Secrets, verifies the chart and pins its test image | K3s, Helm, dedicated PostgreSQL database, OpenSearch endpoint/account, OIDC provider and JWT/Fernet keys. `opensearch/` can supply the search endpoint. MLflow ingestion is optional and separately configured; automatic deployment of OpenMetadata ingestion DAGs through Airflow is disabled. |
 | 8 | Query: Trino and Apache Pinot | `trino/gen-security.sh`, `trino/deploy.sh`, `trino/values.yaml`, `trino/catalogs.example.json`; `pinot/deploy.sh`, `pinot/values.yaml` | Shell generates Trino authentication/TLS material; separate Helm deployments prepare namespaces, Secrets/policies and workloads | K3s, Helm and a CNI enforcing NetworkPolicy. Trino needs `TRINO_*` credentials and starts with synthetic catalogs; external sources are optional. Pinot needs persistent storage and ZooKeeper (bundled by default). The Trino–Pinot connection is optional. |
-| 9 | Visualization: Superset | `superset/deploy.sh`, `superset/values.yaml`, `superset/requirements.lock` | Helm via `deploy.sh`; runtime Secret and hashed Python extension installation during bootstrap; chart-managed Redis | K3s, Helm, existing namespace, external PostgreSQL database/user, `SUPERSET_*` keys and Redis password; persistent storage for Redis. Query-source connections such as Trino must be configured separately. |
+| 9 | Visualization: Apache Superset | `superset/deploy.sh`, `superset/values.yaml`, `superset/requirements.lock` | Helm via `deploy.sh`; runtime Secret and hashed Python extension installation during bootstrap; chart-managed Redis | K3s, Helm, existing namespace, external PostgreSQL database/user, `SUPERSET_*` keys and Redis password; persistent storage for Redis. Query-source connections such as Trino must be configured separately. |
 
 Upstream Helm chart deployments use `scripts/versions.sh`, `versions.lock.json`,
 `versions/*.values.json` and `scripts/locked-images.py`. Runtime configuration
@@ -99,7 +115,7 @@ abort with an explicit message when a required variable is missing.
    If selecting GlusterFS, follow `glusterfs/README.md` before deploying consumers.
    For an in-cluster S3 endpoint, optionally configure and deploy `minio/` before
    its consumers, then export each consumer's scoped connection settings.
-   For Spark, follow [its procedure](spark/README.md): the operator deployment
+   For Spark, follow [its procedure](spark/README.md): the Spark Operator deployment
    prepares job resources in `spark`; review `spark/submit.sh --render` before
    running the supplied distributed smoke check.
    Configure optional cross-service integrations after their endpoints exist.
@@ -138,7 +154,7 @@ repository; generate new values as described above.
 
 This repository provides configuration and code to provision the architecture.
 Host infrastructure, external databases and identity services must be prepared
-by the operator. Object storage may be external or supplied by the optional
+by the administrator. Object storage may be external or supplied by the optional
 MinIO profile, whose backing storage and built image must be prepared first.
 Local checks and template rendering do not
 establish that the complete stack has been deployed successfully. See

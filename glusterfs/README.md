@@ -10,7 +10,7 @@ The Kubernetes GlusterFS volume driver was removed in 1.26, so a `glusterfs:`
 PV is not suitable for the repository's K3s 1.34 baseline. NFS volumes remain
 supported; Ganesha's `FSAL_GLUSTER` accesses GlusterFS through libgfapi.
 See [Kubernetes storage](https://kubernetes.io/docs/concepts/storage/volumes/#nfs)
-and [Ganesha's Gluster integration](https://github.com/nfs-ganesha/nfs-ganesha/wiki/GLUSTER).
+and [NFS-Ganesha's GlusterFS integration](https://github.com/nfs-ganesha/nfs-ganesha/wiki/GLUSTER).
 
 ## Configuration and preview
 
@@ -50,9 +50,9 @@ wildcards and default-route CIDRs are rejected. NFS access is denied outside
 this list. AUTH_SYS trusts the permitted hosts' numeric user identities;
 root access within these networks allows workloads to initialize ownership.
 Use a private trusted storage network: this profile does not add NFS encryption
-or Kerberos. Restrict TCP 2049 to those clients and Gluster management/brick
+or Kerberos. Restrict TCP 2049 to those clients and GlusterFS management/brick
 ports to storage peers and the gateway. Apply firewall rules for the deployed
-Gluster version using its [network guide](https://docs.gluster.org/en/latest/Administrator-Guide/Network-Configurations/).
+GlusterFS version using its [network guide](https://docs.gluster.org/en/latest/Administrator-Guide/Network-Configurations/).
 
 ## Host provisioning
 
@@ -80,7 +80,7 @@ sudo --preserve-env=ALIAS_ENV_FILE bash glusterfs/install-node.sh gateway
 sudo --preserve-env=ALIAS_ENV_FILE bash glusterfs/gateway.sh
 ```
 
-The gateway temporarily mounts the native Gluster volume to create the selected
+The gateway temporarily mounts the native GlusterFS volume to create the selected
 `notebooks`, `dags` and optional `registry` directories. Only new directories get
 the configured numeric owners and mode 2770; existing data is never recursively
 chowned or chmodded. It writes a managed `/etc/ganesha/ganesha.conf` and enables
@@ -126,7 +126,7 @@ JupyterHub's existing values already name this claim. Prepare user subdirectorie
 under `notebooks` for the configured `{username}` subPath before starting their
 servers. For Airflow, set `AIRFLOW_DAGS_PVC=airflow-share-dag-pvc` in **Airflow's**
 environment and redeploy it; `ALIAS_ENV_FILE` must select the consumer's own file
-for that operation. Airflow and Spark Operator receive separate namespaced claims
+for that operation. Airflow and Spark jobs use separate namespaced claims
 pointing at the same `dags` directory; task definitions still need to mount their
 claim. Align the DAG UID/GID with those workloads. Append `registry` to
 `GLUSTERFS_PROFILES` to include the registry's existing claim name; its directory
@@ -139,7 +139,7 @@ namespace; set `SPARK_DAGS_PVC=airflow-share-dag-pvc` in Spark's own environment
 for a read-only mount. Old `spark-operator` claims are preserved and not migrated.
 
 PV capacity fields are binding metadata, not enforced directory quotas; all
-directories share the backing Gluster volume's space. This does not provide an
+directories share the backing GlusterFS volume's space. This does not provide an
 S3 endpoint for MLflow or change the default StorageClass, chart-managed database
 storage, OpenSearch or Pinot volumes. The original component local PV examples
 are alternatives: do not apply them to the same claims.
@@ -167,7 +167,7 @@ K3s node and perform a write/read test as the consumer's UID. Finally check that
 a Pod scheduled on another node reads the same test data through its PVC.
 These host, failover and workload checks have not been run locally.
 
-This profile configures a **single NFS gateway**. Gluster replication does not
+This profile configures a **single NFS gateway**. GlusterFS replication does not
 provide gateway failover; gateway loss interrupts client access. A redundant
 NFS-Ganesha/VIP deployment requires a separate HA design. Replication is not a
 backup. Keep independent data backups and the matching package/configuration

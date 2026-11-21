@@ -61,7 +61,7 @@ registry URI (or your actual authenticated endpoint).
 Deploying the catalog does not ingest models by itself. Configure and run an
 OpenMetadata MLflow ingestion workflow using the same OpenMetadata release and
 an ingestion bot token. No ingestion token is shipped or committed. Automatic
-pipeline deployment is disabled: this chart does not silently install another
+deployment of ingestion DAGs through Airflow is disabled: this chart does not silently install another
 Airflow or assume the existing Airflow has the OpenMetadata ingestion plugin.
 
 ## Maintenance

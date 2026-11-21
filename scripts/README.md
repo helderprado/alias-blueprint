@@ -16,14 +16,14 @@ must already exist.
 The optional independent S3 service is documented in `../minio/README.md`.
 Its interactive wizard writes a private component environment file. Deployment
 uses this same loader and immutable runtime Secret checks, with a local Helm
-chart, an explicitly selected storage source and an operator-built image digest.
+chart, an explicitly selected storage source and an administrator-built image digest.
 `minio/deploy.sh --render` previews only references without contacting a cluster.
 
 | Entry script | Runtime Secrets | Consumer |
 |---|---|---|
 | `trino/deploy.sh` | `trino-auth`, `trino-runtime`, `trino-tls`, optional `trino-catalogs` | SQL authentication, TLS and source configuration |
 | `pinot/deploy.sh` | None in this private profile | Namespace policy plus persistent Pinot/ZooKeeper |
-| `jupyterhub/deploy.sh` | `jupyterhub-runtime` | Hub Secret references for encryption and dummy authentication |
+| `jupyterhub/deploy.sh` | `jupyterhub-runtime` | JupyterHub Hub Secret references for encryption and dummy authentication |
 | `opensearch/deploy.sh` | `opensearch-security`, `opensearch-tls` | Authenticated persistent search backend |
 | `openmetadata/deploy.sh` | `openmetadata-runtime`, `openmetadata-jwt` | Server credential references, OIDC, Fernet and JWT volume |
 | `spark/setup.sh` | Optional `spark-runtime` | S3 and/or JDBC environment references on driver and executors in namespace `spark` |
@@ -42,7 +42,7 @@ tracing before loading local configuration.
 `registry/gen-pass.sh` also consumes `REGISTRY_USER` and `REGISTRY_PASSWORD`, and
 writes only a bcrypt file in the ignored `registry/registry-creds/` directory.
 `registry/deploy.sh` consumes that file. Registry account permissions must be
-assigned by the registry operator; rejecting administrative usernames cannot
+assigned by the registry administrator; rejecting administrative usernames cannot
 prove the account is read-only.
 
 Airflow uses the external database in `AIRFLOW_DATABASE_URL`; the bundled
@@ -69,8 +69,8 @@ Install `scripts/requirements.txt` in the Python environment used by the Helm
 post-renderer. Charts read `versions.lock.json`; `versions/*.values.json` supplies
 immutable image references for normal workloads and Helm hooks. An unrecognized
 floating image causes rendering to fail. See `VERSIONS.md` for the new baseline
-and its validation limits. The default Hub uses the official pinned image; the
-existing pod hook uses the built-in asynchronous Kubernetes client.
+and its validation limits. JupyterHub's Hub uses the official pinned image;
+the existing pod hook uses the built-in asynchronous Kubernetes client.
 
 ## Upgrade and downgrade
 
@@ -83,7 +83,7 @@ OpenSearch and Airflow are independently deployable services. Their component
 `.env.example` files contain only their own variables; select a component's local
 `.env` with `ALIAS_ENV_FILE`. OpenMetadata optionally consumes a search endpoint;
 set its `OPENMETADATA_SEARCH_*` credentials and truststore explicitly. It does not
-provision that service, and pipeline integration with Airflow stays disabled by
+provision that service, and deployment of OpenMetadata ingestion DAGs through Airflow stays disabled by
 default. See each component's README.
 
 Trino and Pinot are independent query services. Their optional connection and
@@ -92,7 +92,7 @@ access profiles are documented in `../trino/README.md` and `../pinot/README.md`.
 ## Spark workload profile
 
 `spark-operator/deploy.sh` validates the selected Spark environment and chart
-archive, invokes `spark/setup.sh`, then installs the pinned operator with workload
+archive, invokes `spark/setup.sh`, then installs the pinned Spark Operator with workload
 namespace `spark` and its admission webhook. Job RBAC is namespace-scoped;
 aggregate ResourceQuota and ephemeral-storage defaults apply to all jobs there.
 `spark/submit.sh` creates the supplied synthetic distributed smoke check with

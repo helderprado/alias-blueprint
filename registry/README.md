@@ -6,7 +6,7 @@ The entry scripts load the repository-root `.env` automatically; see `../scripts
 Kubernetes request. Do not enable shell tracing when supplying credentials.
 
 Use a dedicated registry account with repository pull permission only. The script
-rejects `admin` and `root`; the registry operator must enforce the actual account
+rejects `admin` and `root`; the registry administrator must enforce the actual account
 permissions. No registry account is created or changed by these scripts.
 
 Run the appropriate wrapper with Bash:

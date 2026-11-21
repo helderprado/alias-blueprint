@@ -1,4 +1,4 @@
-# Standalone Airflow service
+# Standalone Apache Airflow service
 
 Airflow is a general workflow orchestrator. Its chart, scheduler, workers and
 metadata database do not require OpenMetadata, OpenSearch or MLflow. Installing
@@ -38,19 +38,19 @@ out to a private project repository. The legacy `persistent-volume.yaml` is only
 an optional environment-specific example and is not applied by deploy.sh. Do not
 apply it to a claim already supplied by the optional
 [`../glusterfs/` storage profile](../glusterfs/README.md). That profile can provide
-`airflow-share-dag-pvc` in both Airflow and Spark Operator namespaces, pointing
-at the same DAG directory. Set `AIRFLOW_DAGS_PVC` explicitly to use it. Do not
+`airflow-share-dag-pvc` in the `airflow` and `spark` namespaces, pointing
+at the same DAG directory; the older `spark-operator` profile remains supported. Set `AIRFLOW_DAGS_PVC` explicitly to use it. Do not
 run `cluster-admin.sh` for a normal installation; the chart creates the executor
 RBAC it needs.
 
 Default administrative-user creation is disabled. Configure your authentication
-provider or create your first operator interactively using the Airflow CLI in the
+provider or create your first administrator interactively using the Airflow CLI in the
 webserver Pod; no default login password is shipped. The ClusterIP web interface
 can be reached with `kubectl -n airflow port-forward service/airflow-webserver 8080:8080`.
 
 ## Optional catalog integration
 
-OpenMetadata's pipeline integration is disabled by default. If it is needed,
+Deployment of OpenMetadata ingestion DAGs through Airflow is disabled by default. If it is needed,
 configure the catalog to consume a compatible Airflow API and install the matching
 OpenMetadata ingestion extensions explicitly in a reviewed image. An ordinary
 Airflow server does not automatically provide the OpenMetadata ingestion plugin.
