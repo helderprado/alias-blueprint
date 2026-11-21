@@ -9,3 +9,4 @@ trino/runtime-creds/
 pinot/runtime-creds/
 minio/runtime-creds/
 minio/*-connection.env
+.local-smoke/

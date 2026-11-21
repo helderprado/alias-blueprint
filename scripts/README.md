@@ -57,6 +57,11 @@ with a required password; use a proper identity provider for multi-user security
 Test commands use synthetic inputs and mocks;
 a successful local check does not establish a successful Kubernetes deployment.
 
+The separate [local installation and smoke runner](LOCAL_SMOKE.md) can provision
+a disposable K3s cluster in Docker and execute real service operations. Start
+with `bash install.sh --plan` from the repository root. Its runtime results and
+blocked/not-run checks are recorded separately from these configuration tests.
+
 ## Version locks
 
 Optional shared filesystem provisioning is in `../glusterfs/README.md`. Its

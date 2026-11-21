@@ -162,6 +162,15 @@ establish that the complete stack has been deployed successfully. See
 
 ## 7. Verification
 
+For a disposable local installation with sequential functional and cross-service
+smoke checks, use `bash install.sh --plan`, `bash install.sh --check`, then
+`bash install.sh --run`. This requires a working local Docker daemon and creates
+an isolated K3s cluster, generated test credentials, synthetic data and a report
+under ignored `.local-smoke/`. It does not use an existing cluster. See
+[local smoke checks](scripts/LOCAL_SMOKE.md) for coverage, memory requirements,
+component selection, cleanup and explicit validation limits. Unavailable runtime
+dependencies and multi-host GlusterFS are reported without claiming success.
+
 Run local version and storage checks from the repository root:
 
 ```sh
