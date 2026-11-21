@@ -18,7 +18,7 @@ and validation limits.
 |---|---|---|---|---|
 | 1 | Infrastructure and security: K3s, Rancher, RBAC | `install-k3s.sh`, `k3s-config.yaml`, `kube-config.sh`, `install-rancher.sh`; component `*/service-account*.yaml` files | Shell installs K3s; Helm installs cert-manager and optional Rancher; `kubectl apply` for RBAC manifests | Host OS and network; cluster access; Helm for Rancher, which uses cert-manager. Component service accounts and role bindings must be applied separately where provided. |
 | 2 | Storage: GlusterFS, persistent volumes and S3-compatible object storage | `glusterfs/`, optional `minio/`; component `persistent-volume.yaml` files, `databases/*/deploy.yaml` and `*/values.yaml` | Bash installs pinned GlusterFS/NFS-Ganesha host packages and creates the volume/export; `glusterfs/deploy.sh` applies static NFS PVs/PVCs; Helm creates other chart-managed PVCs | Existing hosts and mounted brick filesystems; three storage nodes for the replicated profile, a stable NFS gateway and NFS client packages on K3s nodes. Local PV examples remain optional alternatives. S3 endpoints/buckets may be external or provided by the independent MinIO profile. |
-| 3 | Processing and AI: Spark, Spark Operator, ETL images | `spark/`, `spark-operator/deploy.sh`, `spark-operator/add-roles.sh`, `spark-operator/database-secrets.yaml`, `spark-operator/persistent-volume.yaml`, `docker-images/pyspark-aws-psql/`, `docker-images/etl-base-image/` | Helm installs the operator and CRDs; shell / `kubectl apply` for service accounts, RBAC and optional storage/Secrets; Dockerfiles build workload images | K3s; service accounts/RBAC; workload images; database, S3 credentials and DAG storage when used by a job. Spark applications, ETL pipelines and trained models must be supplied separately. |
+| 3 | Processing and AI: Spark, Spark Operator, ETL images | `spark/`, `spark-operator/`, `docker-images/pyspark-aws-psql/`, `docker-images/etl-base-image/`; [Spark procedure](spark/README.md) | Helm installs the operator/CRDs; `spark/setup.sh` prepares namespace-scoped driver RBAC, optional runtime Secrets and aggregate quotas; `spark/submit.sh` creates the bounded smoke job | K3s, Helm, webhook connectivity and locked workload images. MinIO/external S3, JDBC and a read-only shared PVC are optional. The smoke check is supplied; domain ETL pipelines and trained models must be supplied separately. |
 | 4 | Analysis and development: JupyterHub | `jupyterhub/deploy.sh`, `jupyterhub/values.yaml`, `jupyterhub/persistent-volume.yaml`, `jupyterhub/service-account*.yaml`, `jupyterhub/images/hub/` | Helm via `deploy.sh`; `kubectl apply` for namespace, static storage and service account/RBAC; optional custom image build | K3s, Helm, `JUPYTERHUB_*` runtime Secret; existing `nfs-share-pvc`, service account `spark`, and referenced pull secret `regcred`. Spark namespace/RBAC is needed for notebook-submitted Spark workloads. |
 | 5 | Workflow orchestration: Airflow | `airflow/deploy.sh`, `airflow/values.yaml`, `airflow/persistent-volume.yaml`, `airflow/image/` | Helm via `deploy.sh`, which prepares namespace and runtime Secrets; optional static PVC / custom image build | K3s, Helm, external metadata database, Fernet and webserver keys. Optional DAG Git source requires an exact commit; optional DAG PVC must exist. Spark integration requires separately supplied DAGs and Spark resources. |
 | 6 | Model lifecycle: MLflow tracking and registry | `mlflow/deploy.sh`, `mlflow/values.yaml`, `mlflow/README.md` | Helm via `deploy.sh`, which prepares namespace and runtime Secret | K3s, Helm, existing MySQL database/user and writable S3-compatible bucket/endpoint; `MLFLOW_*` configuration. Neither database nor bucket is created by this script. |
@@ -40,7 +40,9 @@ must be adapted before use. Names such as `nfs-share-pv` do not provision an NFS
 server or a shared filesystem: those manifests declare local volumes. For
 shared storage, use the optional [GlusterFS profile](glusterfs/README.md), which
 provides host provisioning scripts and NFSv4.1 PVs for JupyterHub, Airflow,
-Spark Operator and optionally the registry. Choose one provider for each claim;
+Spark jobs and optionally the registry. The current Spark job namespace uses
+the opt-in `spark` storage profile; `spark-operator` remains a legacy profile.
+Choose one provider for each claim;
 existing data requires a separate migration. Chart deployments do not apply the
 separate static PV/PVC files.
 
@@ -97,6 +99,9 @@ abort with an explicit message when a required variable is missing.
    If selecting GlusterFS, follow `glusterfs/README.md` before deploying consumers.
    For an in-cluster S3 endpoint, optionally configure and deploy `minio/` before
    its consumers, then export each consumer's scoped connection settings.
+   For Spark, follow [its procedure](spark/README.md): the operator deployment
+   prepares job resources in `spark`; review `spark/submit.sh --render` before
+   running the supplied distributed smoke check.
    Configure optional cross-service integrations after their endpoints exist.
 7. Verify with the checks in §7.
 

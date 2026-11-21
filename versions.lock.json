@@ -231,5 +231,13 @@
     "builder_image": "golang:1.24.8-bookworm@sha256:4ed690d6649d63c312b99a6120025ec79ce3b542968a37da53d6236c7c61a848",
     "runtime_image": "python:3.11.11-slim-bookworm@sha256:081075da77b2b55c23c088251026fb69a7b2bf92471e491ff5fd75c192fd38e5",
     "deployment_image": "Operator-built server/client image; MINIO_IMAGE must contain its actual registry digest."
+  },
+  "spark": {
+    "version": "3.5.0",
+    "job_namespace": "spark",
+    "operator_namespace": "spark-operator",
+    "jars_lock": "docker-images/pyspark-aws-psql/jars.lock.json",
+    "default_workload_image": "spark@sha256:edc304196cbd7619933658d6e01b082b12bcef45ba96223d4a56584c0b4b1fcf",
+    "integration_image": "Operator-built S3/JDBC image; SPARK_IMAGE must contain its real registry digest."
   }
 }

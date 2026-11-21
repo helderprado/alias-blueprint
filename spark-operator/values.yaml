@@ -1,0 +1,20 @@
+# Controller only; workload accounts/RBAC and budgets are managed by spark/setup.sh.
+sparkJobNamespaces: [spark]
+serviceAccounts:
+  spark:
+    create: false
+rbac:
+  createRole: false
+# The pinned operator needs its own CRD/webhook permissions, separate from drivers.
+webhook:
+  enable: true
+  namespaceSelector: kubernetes.io/metadata.name=spark
+  initResources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+  cleanupResources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {cpu: 500m, memory: 512Mi}

@@ -176,7 +176,8 @@ Other profiles export `S3_ENDPOINT_URL`, `S3_BUCKET`, `AWS_ACCESS_KEY_ID` and
 | Consumer | Optional use | Additional setup |
 |---|---|---|
 | MLflow | Tracking/model artifacts | Existing `MLFLOW_S3_*` fields; MySQL remains separate |
-| Spark / JupyterHub | Shared datasets via S3A | S3A endpoint, path-style access, account and matching Hadoop dependencies in the workload |
+| Spark | Shared datasets via S3A | [Spark procedure](../spark/README.md): scoped `spark` profile, namespace `spark`, immutable S3 image and optional runtime Secret |
+| JupyterHub | Shared datasets via S3A | Endpoint, path-style access, account and matching Hadoop dependencies still require notebook configuration |
 | Airflow | Task data and artifacts | An Airflow S3 connection and task/provider configuration; DAG PVC/Git stays separate |
 | Trino | Iceberg/Hive object data | An appropriate catalog, metastore/catalog service and native S3 properties; endpoint alone creates no tables |
 | Pinot | Segment deep storage | The S3 filesystem plugin and segment storage settings; ZooKeeper and local working volumes remain |

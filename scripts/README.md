@@ -26,6 +26,7 @@ chart, an explicitly selected storage source and an operator-built image digest.
 | `jupyterhub/deploy.sh` | `jupyterhub-runtime` | Hub Secret references for encryption and dummy authentication |
 | `opensearch/deploy.sh` | `opensearch-security`, `opensearch-tls` | Authenticated persistent search backend |
 | `openmetadata/deploy.sh` | `openmetadata-runtime`, `openmetadata-jwt` | Server credential references, OIDC, Fernet and JWT volume |
+| `spark/setup.sh` | Optional `spark-runtime` | S3 and/or JDBC environment references on driver and executors in namespace `spark` |
 | `minio/deploy.sh` | `minio-root`, `minio-client-PROFILE` | Independent S3 server and bucket-scoped client accounts |
 | `mlflow/deploy.sh` | `mlflow-runtime` | Chart external database and S3 credential references |
 | `superset/deploy.sh` | `superset-runtime` | Explicit pod environment references and Redis dependency |
@@ -87,3 +88,19 @@ default. See each component's README.
 
 Trino and Pinot are independent query services. Their optional connection and
 access profiles are documented in `../trino/README.md` and `../pinot/README.md`.
+
+## Spark workload profile
+
+`spark-operator/deploy.sh` validates the selected Spark environment and chart
+archive, invokes `spark/setup.sh`, then installs the pinned operator with workload
+namespace `spark` and its admission webhook. Job RBAC is namespace-scoped;
+aggregate ResourceQuota and ephemeral-storage defaults apply to all jobs there.
+`spark/submit.sh` creates the supplied synthetic distributed smoke check with
+bounded driver/executor resources. Both workload entrypoints offer `--render`
+without cluster requests; selected credentials appear only as Secret references.
+
+S3 and JDBC are enabled independently through `SPARK_S3_ENABLED` and
+`SPARK_DB_ENABLED`. `runtime-secrets.py spark` follows the same credential reuse
+and refusal-of-rotation behavior as the other components. MinIO connection exports
+can supply generic S3/AWS fields. An optional Bound claim in `spark` is mounted
+read-only. See [Spark](../spark/README.md) for build, bootstrap and verification.

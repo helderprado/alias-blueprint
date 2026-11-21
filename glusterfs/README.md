@@ -118,7 +118,8 @@ kubectl -n spark-operator get pvc airflow-share-dag-pvc
 |---|---|---|---|
 | `jupyterhub` | `jupyterhub/nfs-share-pvc` | `notebooks` | 30Gi |
 | `airflow` | `airflow/airflow-share-dag-pvc` | `dags` | 5Gi |
-| `spark-operator` | `spark-operator/airflow-share-dag-pvc` | `dags` | 5Gi |
+| `spark` (opt-in; current jobs) | `spark/airflow-share-dag-pvc` | `dags` | 5Gi |
+| `spark-operator` (legacy) | `spark-operator/airflow-share-dag-pvc` | `dags` | 5Gi |
 | `registry` (opt-in) | `docker-registry/docker-registry-pv-claim` | `registry` | 20Gi |
 
 JupyterHub's existing values already name this claim. Prepare user subdirectories
@@ -130,6 +131,12 @@ pointing at the same `dags` directory; task definitions still need to mount thei
 claim. Align the DAG UID/GID with those workloads. Append `registry` to
 `GLUSTERFS_PROFILES` to include the registry's existing claim name; its directory
 defaults to UID/GID 1000:1000, matching the pinned registry chart's security context.
+
+For the current [Spark job profile](../spark/README.md), select `spark` instead
+of `spark-operator` in `GLUSTERFS_PROFILES` and rerun this deploy after reviewing
+the manifests. The `spark` claim points at the same DAG export in the job
+namespace; set `SPARK_DAGS_PVC=airflow-share-dag-pvc` in Spark's own environment
+for a read-only mount. Old `spark-operator` claims are preserved and not migrated.
 
 PV capacity fields are binding metadata, not enforced directory quotas; all
 directories share the backing Gluster volume's space. This does not provide an

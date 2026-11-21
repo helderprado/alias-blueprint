@@ -1,2 +1,5 @@
-kubectl create serviceaccount spark --namespace=spark-operator
-kubectl create clusterrolebinding spark-role --clusterrole=edit --serviceaccount=spark-operator:spark --namespace=spark-operator
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# Compatibility entrypoint: workload permissions now live in namespace spark.
+exec bash "$SCRIPT_DIR/../spark/setup.sh" "$@"

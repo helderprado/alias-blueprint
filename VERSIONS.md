@@ -333,3 +333,39 @@ The image has not been built or run here. No live S3 operations, cluster
 installation, workload sizing, persistence/failover checks or replication duration
 were measured. Additional consumer integrations are configuration paths, not
 verified end-to-end deployments. Helm rollback cannot undo bucket/IAM state.
+
+## Spark workload standardization
+
+The existing Spark `3.5.0` image and operator chart `1.3.2` are retained. The
+operator now watches only `spark`, uses its admission webhook, has explicit
+resources, and verifies the chart archive before installation. Chart-created
+workload accounts/RBAC are disabled; `spark/setup.sh` applies explicit namespace
+RBAC, a shared job resource budget and optional immutable runtime Secrets. The
+controller's upstream cluster permissions remain separate from driver permissions.
+
+`docker-images/pyspark-aws-psql/jars.lock.json` records SHA-256 for AWS SDK
+`1.12.262`, Hadoop AWS `3.3.4` and PostgreSQL JDBC `42.1.1`. All three JAR downloads
+were checked against Maven Central's published SHA-1 values before recording
+SHA-256. The recipe enforces those SHA-256 values and requires the base's matching
+Hadoop client API/runtime `3.3.4` rather than adding another `hadoop-common` JAR.
+Artifact versions were not upgraded or separately audited for vulnerabilities.
+
+The bounded example `SparkApplication` uses a ConfigMap with synthetic PySpark
+code and optional Secret references/S3A configuration, plus an optional read-only
+PVC in `spark`. The GlusterFS `spark` profile adds a namespaced claim for existing
+DAG exports without changing or deleting legacy `spark-operator` claims. MinIO
+is accessed through a scoped S3 account, never its data PVC.
+
+Offline checks cover rendered workload credentials/resources, failure before
+writes, old global binding detection, changed credential refusal, existing-job
+protection, shared-claim configuration, rejection of corrupt JARs, the actual
+chart with hook digests, and fields supported by its pinned CRD. Run:
+
+```sh
+ALIAS_HELM=/path/to/helm ALIAS_SPARK_OPERATOR_CHART=/path/to/spark-operator-1.3.2.tgz \
+  python3 -m unittest discover -s scripts/tests -p test_spark.py -v
+```
+
+No Spark image build, live Kubernetes execution, workload benchmark or real
+S3/JDBC/NFS round trip has been measured. See [Spark](spark/README.md) for the
+complete procedure and resource/isolation limits.

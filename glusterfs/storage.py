@@ -17,6 +17,7 @@ PROFILES = {
     'jupyterhub': ('jupyterhub', 'nfs-share-pvc', 'notebooks', '30Gi', 'NOTEBOOK', 1000, 100),
     'airflow': ('airflow', 'airflow-share-dag-pvc', 'dags', '5Gi', 'DAGS', 50000, 0),
     'spark-operator': ('spark-operator', 'airflow-share-dag-pvc', 'dags', '5Gi', 'DAGS', 50000, 0),
+    'spark': ('spark', 'airflow-share-dag-pvc', 'dags', '5Gi', 'DAGS', 50000, 0),
     'registry': ('docker-registry', 'docker-registry-pv-claim', 'registry', '20Gi', 'REGISTRY', 1000, 1000),
 }
 

@@ -39,6 +39,9 @@ def query_network_policy(component):
 
 
 def build(component):
+    if component == 'spark':
+        from spark_runtime import build as build_spark
+        return build_spark()
     if component == 'minio':
         from minio_runtime import build as build_minio
         return build_minio()
@@ -265,7 +268,7 @@ def build(component):
 def main():
     component, output = sys.argv[1:]
     secrets, values = build(component)  # Validate everything before any cluster request.
-    if component in ('mlflow', 'openmetadata', 'opensearch', 'airflow', 'trino', 'pinot', 'minio'):
+    if component in ('mlflow', 'openmetadata', 'opensearch', 'airflow', 'trino', 'pinot', 'minio', 'spark'):
         namespace = {'apiVersion': 'v1', 'kind': 'Namespace', 'metadata': {'name': component}}
         subprocess.run(['kubectl', 'apply', '-f', '-'], input=json.dumps(namespace), text=True, check=True)
     if component in ('trino', 'pinot'):
