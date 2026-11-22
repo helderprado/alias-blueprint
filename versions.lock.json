@@ -136,6 +136,7 @@
     }
   },
   "images": {
+    "moby/buildkit:v0.20.2": "moby/buildkit@sha256:c457984bd29f04d6acc90c8d9e717afe3922ae14665f3187e0096976fe37b1c8",
     "burakince/mlflow:3.16.0": "burakince/mlflow@sha256:ab4b566644b90f00f7baf024ab4255e8219a6eeb530f34dd996fd0b0769c5fe1",
     "bitnamilegacy/redis:7.0.10-debian-11-r4": "bitnamilegacy/redis@sha256:224a79826b42869bdc72a70933efd840c5a5f10a70caafca68e57be6901e36fb",
     "apache/superset:4.1.2": "apache/superset@sha256:15e110b8533d3cb6a0d529512ea71252b0ac62e3f72b1f7a5000f1361822ac26",

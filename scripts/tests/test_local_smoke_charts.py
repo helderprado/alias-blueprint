@@ -48,12 +48,10 @@ class RenderLab(smoke.Lab):
         return '{}'
 
     def command(self, args, **kwargs):
-        if str(args[0]) == 'docker':
-            return '262144' if 'sysctl' in args else ''
-        if str(args[0]) == 'bash' and str(args[1]).endswith('registry/gen-pass.sh'):
-            smoke.private(self.project / 'registry/registry-creds/htpasswd', 'smoke:$2b$12$synthetic-only\n')
-            return ''
         return super().command(args, **kwargs)
+
+    def root_command(self, args, **kwargs):
+        return '262144' if 'sysctl' in args else ''
 
     def build_image(self, name, directory):
         return 'local-registry:5000/' + name + '@sha256:' + '1' * 64

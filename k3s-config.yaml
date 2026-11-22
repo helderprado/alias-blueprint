@@ -1,3 +1,2 @@
-kube-apiserver-args:
-  - '--service-node-port-range=1000-32767'
+service-node-port-range: 1000-32767
 

@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+case "${1:-}" in
+    --smoke)
+        shift
+        exec python3 "$SCRIPT_DIR/scripts/local-smoke.py" --run "$@"
+        ;;
+    --help|-h)
+        echo 'Usage: bash install-k3s.sh [--smoke [smoke options]]'
+        echo 'No arguments: install the article K3s service. --smoke: install it, then test Kubernetes components.'
+        exit 0
+        ;;
+    '') [[ $# -eq 0 ]] || exit 1 ;;
+    *) echo 'Usage: bash install-k3s.sh [--smoke [smoke options]]' >&2; exit 1 ;;
+esac
 source "$SCRIPT_DIR/scripts/env.sh"
 
 # Use a fixed release by default; overrides must also name an exact release.
@@ -23,4 +36,14 @@ for dependency in curl sh; do
 done
 
 export INSTALL_K3S_VERSION="$K3S_VERSION"
-curl -sfL https://get.k3s.io | sh -s - server --cluster-init --config "$K3S_CONFIG"
+# Execute only a complete download. A failing curl must never run partial shell code.
+umask 077
+K3S_INSTALLER_FILE="$(mktemp)"
+trap 'rm -f -- "$K3S_INSTALLER_FILE"' EXIT
+curl --fail --show-error --silent --location --proto '=https' --tlsv1.2 \
+    --connect-timeout 15 --max-time 120 --output "$K3S_INSTALLER_FILE" https://get.k3s.io
+if [[ ! -s "$K3S_INSTALLER_FILE" ]]; then
+    echo 'The downloaded K3s installer is empty.' >&2
+    exit 1
+fi
+sh "$K3S_INSTALLER_FILE" server --cluster-init --config "$K3S_CONFIG"

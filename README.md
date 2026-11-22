@@ -162,11 +162,13 @@ establish that the complete stack has been deployed successfully. See
 
 ## 7. Verification
 
-For a disposable local installation with sequential functional and cross-service
-smoke checks, use `bash install.sh --plan`, `bash install.sh --check`, then
-`bash install.sh --run`. This requires a working local Docker daemon and creates
-an isolated K3s cluster, generated test credentials, synthetic data and a report
-under ignored `.local-smoke/`. It does not use an existing cluster. See
+To validate the article's actual installer and then the Kubernetes components,
+use `python3 scripts/local-smoke.py --plan`, then, on a clean test host/VM,
+`sudo bash install-k3s.sh --smoke`. The runner executes `install-k3s.sh`, checks
+the native systemd service, node, DNS and NodePort range, then runs sequential
+functional checks with synthetic data. K3s provides containerd; image builds run
+inside Kubernetes without host Docker. Reports are under ignored `.local-smoke/`.
+The native K3s installation is retained, and existing installations are refused. See
 [local smoke checks](scripts/LOCAL_SMOKE.md) for coverage, memory requirements,
 component selection, cleanup and explicit validation limits. Unavailable runtime
 dependencies and multi-host GlusterFS are reported without claiming success.

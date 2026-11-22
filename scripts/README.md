@@ -57,9 +57,11 @@ with a required password; use a proper identity provider for multi-user security
 Test commands use synthetic inputs and mocks;
 a successful local check does not establish a successful Kubernetes deployment.
 
-The separate [local installation and smoke runner](LOCAL_SMOKE.md) can provision
-a disposable K3s cluster in Docker and execute real service operations. Start
-with `bash install.sh --plan` from the repository root. Its runtime results and
+The [article installer and Kubernetes smoke runner](LOCAL_SMOKE.md) executes the
+actual `install-k3s.sh` on a clean systemd test host, verifies its native service,
+then installs components and performs service operations through Kubernetes.
+Start with `python3 scripts/local-smoke.py --plan`; run the full procedure with
+`sudo bash install-k3s.sh --smoke`. Host Docker is not required. Its runtime results and
 blocked/not-run checks are recorded separately from these configuration tests.
 
 ## Version locks

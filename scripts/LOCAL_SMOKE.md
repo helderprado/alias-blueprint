@@ -1,43 +1,60 @@
-# Local installation and functional smoke checks
+# Article installer and local Kubernetes smoke checks
 
 From the repository root:
 
 ```sh
-bash install.sh --plan
-bash install.sh --check
-bash install.sh --run
+python3 scripts/local-smoke.py --plan
+python3 scripts/local-smoke.py --check
+sudo bash install-k3s.sh --smoke
 ```
 
-`--run` creates a disposable, single-node K3s cluster in a privileged Docker
-container. It uses the K3s/Helm versions, chart checksums, image digests,
-component values, runtime Secret builders and image recipes in this repository.
-This exercises a local installation; it does not run the host-level
-`install-k3s.sh`, install Rancher on your existing cluster, or read your kubeconfig.
-No existing component `.env`, credentials or volumes are reused. A source snapshot
-contains only versioned repository files; edits to versioned files are included.
+`install-k3s.sh` is the only installation entrypoint. Without arguments it installs
+the article's K3s system service. `--smoke` delegates to the test runner, which
+executes that same real shell script without `--smoke`, verifies its installation,
+then installs and tests the components inside Kubernetes. There is no separate
+K3s container, Docker Desktop dependency or alternative cluster installer.
 
-Linux/WSL2 amd64, a working local Docker daemon, Python 3 with venv support,
-Git, OpenSSL and Java `keytool` must be available. For WSL2, enable Docker Desktop
-integration for the distribution first. Registry charts, images, Python packages,
-Go modules and Maven artifacts require outbound network access. The runner checks
-Docker before downloading or building anything. Helm and Python dependencies are
-prepared under ignored `.local-smoke/` when the locked versions are unavailable.
+Use a clean Linux/WSL2 amd64 test host or VM with systemd and administrative
+access. An existing K3s installation is refused. Python 3 with venv support, curl,
+Git, OpenSSL and Java `keytool` must be available. The article host baseline is
+Ubuntu 22.04; running on another distribution does not validate that baseline.
+WSL2 needs systemd enabled. `sudo python3 scripts/local-smoke.py --check` checks
+the prerequisites without installing services.
+
+The runner uses the committed K3s configuration, adding only a private-registry
+file and a node ownership label. It preserves normal K3s defaults, including
+Traefik and ServiceLB. The corrected article option is
+`service-node-port-range: 1000-32767`. Native validation checks the installed
+binary version, active systemd service, Ready node, CoreDNS, and API acceptance
+of a Service with NodePort 10000. Only then is `install-k3s` recorded as PASS.
+The report includes hashes of the entrypoint and article configuration.
+
+K3s supplies containerd. Custom image builds use the pinned BuildKit image in a
+privileged Kubernetes Pod; registry authentication is mounted from a Secret.
+Images are pushed to the test registry and consumed by K3s using verified
+manifest digests. No host Docker daemon or host image builder is required.
+Helm is a deployment client; it and Python dependencies are prepared under
+ignored `.local-smoke/` when the locked versions are unavailable.
 `ALIAS_HELM=/absolute/path/to/helm` can select the locked Helm client.
+Downloads of K3s, charts, images, Python packages, Go modules and Maven artifacts
+require outbound network access. No existing component `.env`, credentials,
+volumes or kubeconfig are reused. The component source snapshot includes
+versioned files and their current edits; generated credentials are test-only.
 
 The complete sequence targets a machine with 6 CPUs and 15 GiB RAM, with about
 12 GiB available, and sufficient disk space for images, Go build caches and PVCs.
 This is a target footprint, not a measured successful full-stack deployment.
 The runner refuses to start below 8 GiB available. Services are unloaded after
 their final consumer to release memory; the local Trino profile uses smaller
-heaps and resource requests. Persistent data stays in the disposable node until
-that node is removed. Initial source builds of MinIO and Spark can take much
+heaps and resource requests. PVC data stays on the native K3s host until the test
+namespaces/PVCs are deleted. Initial source builds of MinIO and Spark can take much
 longer than subsequent runs.
 
 ## Coverage
 
 | Stage | Functional assertion |
 |---|---|
-| Bootstrap | Install isolated K3s; wait for node and DNS readiness |
+| install-k3s | Run the article shell installer; check systemd, locked version, Ready node, DNS and NodePort 10000 |
 | Storage | One Pod writes a PVC; a different Pod reads the same bytes |
 | Databases | PostgreSQL and MySQL insert/select/drop temporary tables; create separate application users/databases |
 | Registry | Authenticated image push, verified manifest digest, then Kubernetes pulls/runs that image |
@@ -69,9 +86,11 @@ ingress, routing and HTTPS termination are outside this local check. Trino and
 OpenSearch retain certificate verification. Local PVC checks do not validate
 GlusterFS replication, NFS-Ganesha, failover, throughput or production security.
 
-Only the Kubernetes API and authenticated registry publish ports on host
-loopback. Other component endpoints remain inside the disposable cluster.
-OpenSearch may temporarily raise the Docker kernel's `vm.max_map_count`; the
+The native service listens according to the article K3s configuration; its normal
+Traefik/ServiceLB components are preserved. The test registry uses NodePort 30500;
+other test application Services use ClusterIP. This is a real host installation,
+so use a dedicated test machine or VM. OpenSearch may temporarily raise the host
+kernel's `vm.max_map_count`; the
 previous value is restored on normal exit or Ctrl+C, including with `--keep`.
 An uncatchable termination such as SIGKILL can prevent that restoration.
 
@@ -80,15 +99,16 @@ An uncatchable termination such as SIGKILL can prevent that restoration.
 Dependencies are included automatically, in order:
 
 ```sh
-bash install.sh --run --components spark
-bash install.sh --run --components superset
-bash install.sh --run --components airflow,jupyterhub,openmetadata,superset,pgadmin,homepage,rancher
+sudo bash install-k3s.sh --smoke --components spark
+sudo bash install-k3s.sh --smoke --components superset
+sudo bash install-k3s.sh --smoke --components airflow,jupyterhub,openmetadata,superset,pgadmin,homepage,rancher
 ```
 
 The last command selects all locally testable components, excluding the known
 multi-host GlusterFS limitation. `--components all` is the default and explicitly
 includes that limitation as a BLOCKED result, so it cannot return complete success
-on a single-node machine.
+on a single-node machine. Each installation run requires a fresh host/VM; an
+already installed K3s is never silently replaced.
 
 Deployment/probe deadlines default to 900 seconds; each custom image build/push
 can take up to 3600 seconds. Override with `--timeout` and `--build-timeout`.
@@ -102,39 +122,51 @@ Each invocation writes its own directory:
   logs/                redacted command output and failure diagnostics
   project/             source snapshot and generated component credentials
   test.env             generated test-only inputs
-  kubeconfig           access only to this disposable cluster
+  kubeconfig           private copy of this native K3s cluster's credentials
+  native.json          native client path and owned test namespaces
+  k3s-config.yaml      article configuration plus registry/node-label additions
+  registries.yaml      test registry settings referenced by the native service
 ```
 
 Reports, inputs and logs are private files. Generated credentials are removed from
-command logs; kubeconfig/Secret reads suppress their output. The directory still
+command logs; kubeconfig/Secret reads suppress their output. Administrative runs
+produce root-owned private files. The directory still
 contains credentials and keys needed by the test installation, and is ignored by
-Git. Do not publish the entire run directory. Charts, downloaded images and build
-layers remain cached for reuse.
+Git. Do not publish the entire run directory. Keep the run directory while this
+native service is installed: its config references files there. Chart archives
+and containerd images remain cached; the BuildKit Pod's build cache is ephemeral.
 
 Results distinguish `PASS`, `FAIL`, `BLOCKED` and `NOT_RUN`. A dependency failure
 blocks its consumers; independent stages continue. Preflight failure records
 NOT_RUN for every component and exits nonzero without provisioning a cluster.
 The exit code is zero only when every selected functional stage and cleanup
-succeeds. `--check` only checks prerequisites and deliberately records functional
+succeeds, with namespace deletion requested where applicable. `--check` only
+checks prerequisites and deliberately records functional
 checks as NOT_RUN; it is not a functional success report.
 
-The cluster and its anonymous data volumes are removed after diagnostics, even
-when installation or a probe fails. Retain them for inspection with:
+The native K3s service is always retained. By default, after diagnostics the
+runner requests deletion of its labelled test namespaces/PVCs; namespace deletion
+is asynchronous, and controller finalizers can delay completion. Retain test
+namespaces for inspection with:
 
 ```sh
-bash install.sh --run --components spark --keep
-docker exec -it alias-smoke-RUN_ID_LOWERCASE k3s kubectl get pods -A
-bash install.sh --cleanup RUN_ID
+sudo bash install-k3s.sh --smoke --components spark --keep
+sudo k3s kubectl get pods -A
+sudo python3 scripts/local-smoke.py --cleanup RUN_ID
 ```
 
-The report records the exact container name. Finished services are still unloaded
-with `--keep`; retained PVCs and logs support inspection without requiring all
-services to stay in RAM. Explicit cleanup checks the container's ownership label
-before deleting it. It does not prune unrelated Docker images or containers.
+Finished services are still unloaded with `--keep`; retained PVCs and logs support
+inspection without requiring all services to stay in RAM. Cleanup checks the
+cluster marker and each namespace's ownership label before requesting deletion.
+The control namespace, cluster-wide CRDs and resources created by third-party
+controllers may remain. Neither automatic nor explicit test cleanup calls
+`k3s-uninstall.sh`, removes the system service or deletes unrelated namespaces.
+Discard the test VM when finished, or use K3s's own uninstall procedure separately.
 
 ## Validate the runner without services
 
 ```sh
+python3 -m unittest discover -s scripts/tests -p test_install_k3s.py -v
 python3 -m unittest discover -s scripts/tests -p 'test_local_smoke*.py' -v
 ```
 
@@ -147,9 +179,16 @@ ALIAS_SMOKE_CHARTS_DIR=/path/to/verified/charts \
 python3 -m unittest discover -s scripts/tests -p test_local_smoke_charts.py -v
 ```
 
-These checks validate orchestration/failure behavior and rendered manifests;
+The installer tests execute the real shell entrypoint, replacing only curl and
+the upstream installer's response with controlled fixtures. They verify version
+and argument forwarding, invalid inputs, partial/empty downloads, upstream errors,
+temporary-file cleanup and smoke delegation. Runner tests verify that native
+bootstrap invokes this same entrypoint and preserves the article's options.
+These local checks validate orchestration/failure behavior and rendered manifests;
 they never establish a running service or successful cross-service operation.
 
-Implementation references: [K3s in Docker](https://docs.k3s.io/advanced),
+Implementation references: [K3s installation/configuration](https://docs.k3s.io/installation/configuration),
+[native server options](https://docs.k3s.io/cli/server),
+[BuildKit in Kubernetes](https://github.com/moby/buildkit/blob/v0.20.2/examples/kubernetes/pod.privileged.yaml),
 [Pinot's small-file upload API](https://docs.pinot.apache.org/build-with-pinot/ingestion/batch-ingestion/batch-ingestion),
 [JupyterHub API](https://jupyterhub.readthedocs.io/en/4.x/reference/rest-api.html).

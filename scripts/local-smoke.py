@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Disposable K3s installation and real cross-service smoke checks (stdlib CLI)."""
+"""Test the article's native install-k3s.sh, then Kubernetes service operations."""
 import argparse
 import base64
 from datetime import datetime, timezone
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -108,13 +109,12 @@ class Lab:
         self.env = {key: value for key, value in os.environ.items()
                     if not key.startswith(('AIRFLOW_', 'MINIO_', 'MLFLOW_', 'SPARK_', 'TRINO_',
                         'PINOT_', 'SUPERSET_', 'OPENMETADATA_', 'OPENSEARCH_', 'JUPYTERHUB_',
-                        'REGISTRY_', 'ALIAS_', 'KUBE', 'HELM_'))}
+                        'REGISTRY_', 'ALIAS_', 'KUBE', 'HELM_', 'K3S_', 'INSTALL_K3S_', 'DOCKER_'))}
         self.env.update(ALIAS_ENV_FILE=str(self.path / 'test.env'),
                         KUBECONFIG=str(self.path / 'kubeconfig'),
                         HELM_CONFIG_HOME=str(self.path / 'helm/config'),
                         HELM_CACHE_HOME=str(STATE / 'cache/helm'),
                         HELM_DATA_HOME=str(self.path / 'helm/data'),
-                        DOCKER_CONFIG=str(self.path / 'docker'),
                         HELM_TIMEOUT=str(args.timeout) + 's')
         self.values = {}
         self.hidden = set()
@@ -122,6 +122,9 @@ class Lab:
         self.rows = []
         self.current = 'preflight'
         self.created = False
+        self.k3s = '/usr/local/bin/k3s'
+        self.namespaces = set()
+        self.builder_started = False
         self.py = sys.executable
         self.helm = None
         self.port = None
@@ -145,14 +148,17 @@ class Lab:
         value = re.sub(r'K10[0-9a-f]{64}::(?:server|agent):[^\s\'"]+', '[REDACTED]', value)
         return value
 
-    def command(self, args, *, data=None, check=True, timeout=None, sensitive=False):
+    def command(self, args, *, data=None, check=True, timeout=None, sensitive=False, binary=False):
         # No shell interpolation; credentials and executable probe bodies use stdin.
         try:
-            result = subprocess.run([str(a) for a in args], input=data, text=True,
+            result = subprocess.run([str(a) for a in args], input=data, text=not binary,
                                     capture_output=True, env=self.env,
                                     timeout=timeout or self.args.timeout)
         except subprocess.TimeoutExpired as error:
             raise RuntimeError('Timed out running ' + str(args[0])) from error
+        if binary:
+            result.stdout = result.stdout.decode(errors='replace')
+            result.stderr = result.stderr.decode(errors='replace')
         log = self.path / 'logs' / (self.current + '.log')
         log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         with log.open('a') as stream:
@@ -164,14 +170,19 @@ class Lab:
         return result.stdout
 
     def k(self, *args, **kwargs):
-        return self.command(['docker', 'exec', '-i', self.name, 'k3s', 'kubectl',
+        return self.command([self.k3s, 'kubectl', '--kubeconfig', self.env['KUBECONFIG'],
                              '--request-timeout=30s', *args], **kwargs)
+
+    def root_command(self, args, **kwargs):
+        return self.command(([] if os.geteuid() == 0 else ['sudo', '-n']) + args, **kwargs)
 
     def apply(self, *documents):
         self.k('apply', '-f', '-', data=json.dumps({'apiVersion': 'v1', 'kind': 'List', 'items': documents}))
 
     def namespace(self, name):
-        self.apply({'apiVersion': 'v1', 'kind': 'Namespace', 'metadata': {'name': name}})
+        self.apply({'apiVersion': 'v1', 'kind': 'Namespace',
+                    'metadata': {'name': name, 'labels': {LABEL: self.id}}})
+        self.namespaces.add(name)
 
     def secret(self, namespace, name, values):
         self.apply({'apiVersion': 'v1', 'kind': 'Secret',
@@ -188,17 +199,18 @@ class Lab:
     def preflight(self):
         if platform.system() != 'Linux' or platform.machine() != 'x86_64':
             raise Blocked('This repository image baseline requires Linux/WSL2 amd64.')
-        for tool in ('docker', 'git', 'openssl', 'keytool'):
+        for tool in ('curl', 'git', 'openssl', 'keytool', 'systemctl'):
             if not shutil.which(tool):
                 raise Blocked('Required command not found: ' + tool)
-        endpoint = self.env.get('DOCKER_HOST', '')
-        if endpoint and not endpoint.startswith('unix://'):
-            raise Blocked('This profile requires a local Docker daemon through a Unix socket; remote DOCKER_HOST is refused.')
+        if shutil.which('k3s') or Path('/etc/rancher/k3s').exists() or Path('/etc/systemd/system/k3s.service').exists():
+            raise Blocked('An existing K3s installation was detected. Use a clean test host/VM to validate the article installer without modifying that installation.')
         try:
-            self.command(['docker', 'info', '--format', '{{.ServerVersion}}'], timeout=20)
+            self.root_command(['true'], timeout=20)
         except RuntimeError as error:
-            raise Blocked('Docker is unavailable. In WSL enable Docker Desktop integration for this distro. '
-                          + str(error)) from error
+            raise Blocked('Native install-k3s.sh needs administrator access. Run sudo bash install-k3s.sh --smoke in your terminal. ' + str(error)) from error
+        state = self.command(['systemctl', 'is-system-running'], check=False, timeout=20).strip()
+        if state not in ('running', 'degraded'):
+            raise Blocked('A running systemd host is required for this installation test. In WSL enable systemd and restart the distribution.')
         available = next((int(line.split()[1]) for line in Path('/proc/meminfo').read_text().splitlines()
                           if line.startswith('MemAvailable:')), 0)
         if available < 8 * 1024 * 1024:
@@ -305,25 +317,48 @@ class Lab:
                                                 'password': self.values['REGISTRY_PASSWORD']}}
                                   for host in ('local-registry:5000', '127.0.0.1:30500')}}
         private(self.path / 'registries.yaml', json.dumps(registries))
-        version = self.lock['k3s'].replace('+', '-')
-        self.command(['docker', 'create', '--name', self.name, '--label', LABEL + '=' + self.id,
-            '--privileged', '--publish', '127.0.0.1::6443', '--publish', '127.0.0.1::30500',
-            'rancher/k3s:' + version, 'server', '--cluster-init', '--tls-san', '127.0.0.1',
-            '--disable', 'traefik', '--disable', 'servicelb', '--private-registry', '/etc/alias-registries.yaml'])
+        # Inherit the article configuration; add only the test registry and node ownership label.
+        code = 'import sys,yaml,json; print(json.dumps(yaml.safe_load(open(sys.argv[1])) or {}))'
+        config = json.loads(self.command([self.py, '-c', code, str(ROOT / 'k3s-config.yaml')]))
+        config['private-registry'] = str(self.path / 'registries.yaml')
+        config.setdefault('node-label', []).append(LABEL + '=' + self.id)
+        private(self.path / 'k3s-config.yaml', json.dumps(config, indent=2))
+        self.native_config = config
+        self.current = 'install-k3s'
+        started = time.monotonic()
+        # Execute the real article entrypoint, not a K3s container or a second installer.
         self.created = True
-        self.command(['docker', 'cp', str(self.path / 'registries.yaml'), self.name + ':/etc/alias-registries.yaml'])
-        self.command(['docker', 'start', self.name])
-        self.port = self.command(['docker', 'port', self.name, '6443/tcp']).strip().rsplit(':', 1)[1]
-        self.registry_port = self.command(['docker', 'port', self.name, '30500/tcp']).strip().rsplit(':', 1)[1]
+        self.root_command(['env', 'ALIAS_ENV_FILE=' + self.env['ALIAS_ENV_FILE'],
+            'K3S_VERSION=' + self.lock['k3s'], 'K3S_CONFIG=' + str(self.path / 'k3s-config.yaml'),
+            'bash', str(ROOT / 'install-k3s.sh')])
+        self.k3s = shutil.which('k3s') or '/usr/local/bin/k3s'
+        config = self.root_command(['cat', '/etc/rancher/k3s/k3s.yaml'], sensitive=True)
+        private(self.path / 'kubeconfig', config)
+        version = self.command([self.k3s, '--version']).splitlines()[0]
+        if not re.search(r'(?<!\S)' + re.escape(self.lock['k3s']) + r'(?!\S)', version):
+            raise ProbeFailed('The installed K3s version differs from versions.lock.json: ' + version)
+        if self.command(['systemctl', 'is-active', 'k3s']).strip() != 'active':
+            raise ProbeFailed('The article installer did not start the k3s system service')
         self.until(lambda: self.k('get', 'nodes', '-o', 'json'), 'K3s API')
         self.k('wait', '--for=condition=Ready', 'nodes', '--all', '--timeout=' + str(self.args.timeout) + 's')
-        config = self.command(['docker', 'exec', self.name, 'cat', '/etc/rancher/k3s/k3s.yaml'], sensitive=True)
-        private(self.path / 'kubeconfig', config.replace('127.0.0.1:6443', '127.0.0.1:' + self.port))
-        wrapper = '#!/usr/bin/env bash\nexec docker exec -i ' + shlex.quote(self.name) + ' k3s kubectl --request-timeout=30s "$@"\n'
+        self.k('-n', 'kube-system', 'rollout', 'status', 'deployment/coredns', '--timeout=' + str(self.args.timeout) + 's')
+        self.namespace('alias-smoke-control')
+        # Exercise the article's non-default NodePort range through the real API.
+        self.apply({'apiVersion': 'v1', 'kind': 'Service',
+            'metadata': {'name': 'article-nodeport-check', 'namespace': 'alias-smoke-control'},
+            'spec': {'type': 'NodePort', 'selector': {'app': 'no-backend-required'},
+                     'ports': [{'port': 5000, 'targetPort': 5000, 'nodePort': 10000}]}})
+        self.k('-n', 'alias-smoke-control', 'delete', 'service', 'article-nodeport-check')
+        private(self.path / 'native.json', json.dumps({'k3s': self.k3s, 'namespaces': sorted(self.namespaces)}))
+        self.registry_port = '30500'
+        wrapper = ('#!/usr/bin/env bash\nexec ' + shlex.quote(self.k3s) + ' kubectl --kubeconfig '
+                   + shlex.quote(self.env['KUBECONFIG']) + ' --request-timeout=30s "$@"\n')
         private(self.bin / 'kubectl', wrapper)
         (self.bin / 'kubectl').chmod(0o700)
         self.env['PATH'] = str(self.bin) + ':' + self.env.get('PATH', '')
-        self.k('-n', 'kube-system', 'rollout', 'status', 'deployment/coredns', '--timeout=' + str(self.args.timeout) + 's')
+        self.record('install-k3s', 'PASS', started,
+                    'Native systemd service, locked binary version, Ready node, CoreDNS and article NodePort range verified.')
+        self.current = 'bootstrap'
 
     def until(self, callback, label):
         deadline = time.monotonic() + self.args.timeout
@@ -485,19 +520,17 @@ class Lab:
     def registry(self):
         self.namespace('docker-registry')
         self.pvc('docker-registry', 'docker-registry-pv-claim', '5Gi')
-        self.command(['bash', str(self.project / 'registry/gen-pass.sh')])
+        # bcrypt is already a locked deployment-tool dependency; no host Docker is needed.
+        code = ('import os,bcrypt; print(os.environ["REGISTRY_USER"]+":"+'
+                'bcrypt.hashpw(os.environ["REGISTRY_PASSWORD"].encode(),bcrypt.gensalt(12)).decode())')
+        private(self.project / 'registry/registry-creds/htpasswd', self.command([self.py, '-c', code]))
         htpasswd = (self.project / 'registry/registry-creds/htpasswd').read_text()
         self.deploy('registry', {'service': {'type': 'NodePort', 'nodePort': 30500},
                                'secrets': {'htpasswd': htpasswd}}, runtime=False,
                     namespace='docker-registry', release='docker-registry')
-        self.command(['docker', 'login', '127.0.0.1:' + self.registry_port,
-                      '--username', self.values['REGISTRY_USER'], '--password-stdin'], data=self.values['REGISTRY_PASSWORD'])
-        original = self.lock['images']['busybox:1.38.0']
-        self.command(['docker', 'pull', original])
-        tag = '127.0.0.1:' + self.registry_port + '/probe:local'
-        self.command(['docker', 'tag', original, tag])
-        self.command(['docker', 'push', tag])
-        image = self.image_digest('probe', 'local')
+        context = self.path / 'registry-probe'
+        private(context / 'Dockerfile', 'FROM ' + self.lock['images']['busybox:1.38.0'] + '\n')
+        image = self.build_image('probe', context)
         self.workload('docker-registry', 'registry-consumer', image, ['sh', '-ec', 'test 42 -eq 42'], kind='Job')
 
     def image_digest(self, repository, tag):
@@ -513,10 +546,45 @@ class Lab:
         return 'local-registry:5000/' + repository + '@' + digest
 
     def build_image(self, name, directory):
-        tag = '127.0.0.1:' + self.registry_port + '/' + name + ':local'
-        self.command(['docker', 'build', '--tag', tag, str(self.project / directory)], timeout=self.args.build_timeout)
-        self.command(['docker', 'push', tag], timeout=self.args.build_timeout)
+        self.start_builder()
+        pod = self.pod('docker-registry', 'app=smoke-buildkit')
+        target = '/tmp/alias-context-' + name
+        self.k('-n', 'docker-registry', 'exec', pod, '--', 'mkdir', '-p', target)
+        archive = io.BytesIO()
+        with tarfile.open(fileobj=archive, mode='w:gz') as bundle:
+            bundle.add(self.project / directory, arcname='.')
+        self.k('-n', 'docker-registry', 'exec', '-i', pod, '--', 'tar', '-xzf', '-', '-C', target,
+               data=archive.getvalue(), binary=True)
+        tag = 'docker-registry.docker-registry.svc.cluster.local:5000/' + name + ':local'
+        self.k('-n', 'docker-registry', 'exec', pod, '--', 'buildctl', 'build',
+               '--frontend', 'dockerfile.v0', '--local', 'context=' + target, '--local', 'dockerfile=' + target,
+               '--output', 'type=image,name=' + tag + ',push=true,registry.insecure=true',
+               timeout=self.args.build_timeout)
         return self.image_digest(name, 'local')
+
+    def start_builder(self):
+        if self.builder_started:
+            return
+        auth = base64.b64encode((self.values['REGISTRY_USER'] + ':' + self.values['REGISTRY_PASSWORD']).encode()).decode()
+        config = json.dumps({'auths': {'docker-registry.docker-registry.svc.cluster.local:5000': {'auth': auth}}})
+        self.secret('docker-registry', 'buildkit-auth', {'config.json': config})
+        self.apply({'apiVersion': 'apps/v1', 'kind': 'Deployment',
+            'metadata': {'name': 'smoke-buildkit', 'namespace': 'docker-registry'},
+            'spec': {'replicas': 1, 'selector': {'matchLabels': {'app': 'smoke-buildkit'}},
+                'template': {'metadata': {'labels': {'app': 'smoke-buildkit'}},
+                    'spec': {'automountServiceAccountToken': False, 'containers': [{
+                        'name': 'buildkit', 'image': self.lock['images']['moby/buildkit:v0.20.2'],
+                        'securityContext': {'privileged': True},
+                        'readinessProbe': {'exec': {'command': ['buildctl', 'debug', 'workers']}, 'periodSeconds': 5},
+                        'resources': {'requests': {'cpu': '500m', 'memory': '1Gi'},
+                                      'limits': {'cpu': '3', 'memory': '4Gi'}},
+                        'volumeMounts': [{'name': 'auth', 'mountPath': '/root/.docker', 'readOnly': True},
+                                         {'name': 'cache', 'mountPath': '/var/lib/buildkit'}]}],
+                        'volumes': [{'name': 'auth', 'secret': {'secretName': 'buildkit-auth'}},
+                                    {'name': 'cache', 'emptyDir': {}}]}}}})
+        self.k('-n', 'docker-registry', 'rollout', 'status', 'deployment/smoke-buildkit',
+               '--timeout=' + str(self.args.timeout) + 's')
+        self.builder_started = True
 
     def minio(self):
         self.values['MINIO_IMAGE'] = self.build_image('minio', 'minio')
@@ -536,6 +604,8 @@ class Lab:
             SPARK_S3_BUCKET='spark', SPARK_S3_ACCESS_KEY_ID=self.values['MINIO_SPARK_ACCESS_KEY'],
             SPARK_S3_SECRET_ACCESS_KEY=self.values['MINIO_SPARK_SECRET_KEY'])
         self.save_env()
+        self.namespace('spark')
+        self.namespace('spark-operator')
         archive = self.chart('spark-operator')
         self.env['SPARK_OPERATOR_CHART'] = str(archive)
         self.releases['spark'] = ('spark-operator', 'spark-operator')
@@ -603,10 +673,10 @@ class Lab:
                    {'application': template, 'timeout': self.args.timeout}, python='python3')
 
     def opensearch(self):
-        count = int(self.command(['docker', 'exec', self.name, 'sysctl', '-n', 'vm.max_map_count']).strip())
+        count = int(self.root_command(['sysctl', '-n', 'vm.max_map_count']).strip())
         if count < 262144:
             self.previous_map_count = count
-            self.command(['docker', 'exec', self.name, 'sysctl', '-w', 'vm.max_map_count=262144'])
+            self.root_command(['sysctl', '-w', 'vm.max_map_count=262144'])
         self.command(['bash', str(self.project / 'opensearch/gen-security.sh')])
         self.deploy('opensearch')
         self.namespace('smoke-client')
@@ -722,7 +792,7 @@ class Lab:
     def diagnostics(self):
         if not self.created:
             return
-        self.command(['docker', 'logs', '--tail', '150', self.name], check=False)
+        self.root_command(['journalctl', '-u', 'k3s', '--no-pager', '-n', '150'], check=False)
         for args in [('get', 'pods', '-A', '-o', 'wide'), ('get', 'events', '-A', '--sort-by=.lastTimestamp'),
                      ('get', 'pvc', '-A')]:
             self.k(*args, check=False)
@@ -738,12 +808,26 @@ class Lab:
                 self.command([self.helm, 'uninstall', release, '-n', namespace,
                               '--wait', '--timeout', str(self.args.timeout) + 's'])
                 del self.releases[component]
-        for component, namespaces in [('databases', ['databases']), ('opensearch', ['smoke-client']),
+        for component, namespaces in [('registry', ['docker-registry']), ('databases', ['databases']), ('opensearch', ['smoke-client']),
             ('pinot', ['pinot']), ('trino', ['trino']), ('pgadmin', ['pgadmin']), ('homepage', ['homepage']),
             ('rancher', ['cattle-system'])]:
             if component not in needed:
                 for namespace in namespaces:
                     self.k('-n', namespace, 'delete', 'deployment', '--all', '--ignore-not-found', check=False)
+
+    def cleanup_workloads(self):
+        if not self.namespaces:
+            return
+        marker = json.loads(self.k('get', 'namespace', 'alias-smoke-control', '-o', 'json'))
+        if marker.get('metadata', {}).get('labels', {}).get(LABEL) != self.id:
+            raise RuntimeError('Cluster ownership label does not match; refusing namespace cleanup')
+        for name in sorted(self.namespaces - {'alias-smoke-control'}):
+            namespace = self.k('get', 'namespace', name, '--ignore-not-found', '-o', 'json')
+            if not namespace.strip():
+                continue
+            if json.loads(namespace).get('metadata', {}).get('labels', {}).get(LABEL) != self.id:
+                raise RuntimeError('Namespace ownership label does not match: ' + name)
+            self.k('delete', 'namespace', name, '--wait=false')
 
     def record(self, name, status, started, detail=''):
         self.rows.append({'component': name, 'status': status,
@@ -754,11 +838,17 @@ class Lab:
         print(f'{name}: {status}' + (' — ' + self.clean(detail)[:250] if detail else ''), flush=True)
 
     def report(self):
-        report = {'run_id': self.id, 'container': self.name, 'mode': self.args.mode,
+        report = {'run_id': self.id, 'mode': self.args.mode,
+                  'cluster': {'kind': 'native-k3s', 'host': platform.node(),
+                              'installer': 'install-k3s.sh',
+                              'installer_sha256': hashlib.sha256((ROOT / 'install-k3s.sh').read_bytes()).hexdigest(),
+                              'article_config_sha256': hashlib.sha256((ROOT / 'k3s-config.yaml').read_bytes()).hexdigest(),
+                              'installer_verified': any(row['component'] == 'install-k3s' and row['status'] == 'PASS' for row in self.rows),
+                              'installation_attempted': self.created, 'automatically_uninstalled': False},
                   'elapsed_seconds': round(time.monotonic() - self.start, 2),
                   'machine': getattr(self, 'machine', {}), 'versions': {'k3s': self.lock['k3s'], 'helm': self.lock['helm']},
                   'checks': self.rows, 'limitations': [
-                      'Single-node K3s in Docker; native install-k3s.sh and multi-host GlusterFS are not exercised.',
+                      'Native single-node K3s; multi-host GlusterFS replication is not exercised.',
                       'OpenMetadata uses local basic/JWT auth and API-based MLflow import; external OIDC and the ingestion connector are not tested.',
                       'JupyterHub uses dummy authentication; notebook execution is checked inside the spawned notebook Pod.',
                       'Reduced resources and synthetic data; this is not a load, HA or production security test.']}
@@ -775,12 +865,12 @@ class Lab:
             self.preflight()
             self.record('preflight', 'PASS', started)
             if self.args.mode == 'check':
-                for name in components:
+                for name in ['install-k3s', *components]:
                     self.record(name, 'NOT_RUN', time.monotonic(), 'Preflight only; use --run to install and test.')
                 return 0
             self.current = 'bootstrap'
             started = time.monotonic()
-            print('bootstrap: RUNNING — isolated K3s installation', flush=True)
+            print('bootstrap: RUNNING — article install-k3s.sh on native systemd host', flush=True)
             self.bootstrap()
             self.record('bootstrap', 'PASS', started)
             for index, name in enumerate(components):
@@ -813,7 +903,7 @@ class Lab:
             self.record(self.current, 'BLOCKED' if isinstance(error, Blocked) else 'FAIL', started,
                         str(error) or 'Interrupted')
             existing = {row['component'] for row in self.rows}
-            for name in components:
+            for name in ['install-k3s', *components]:
                 if name not in existing:
                     self.record(name, 'NOT_RUN', time.monotonic(), 'Installation prerequisites or bootstrap did not complete.')
         finally:
@@ -824,22 +914,23 @@ class Lab:
                     try:
                         self.diagnostics()
                     except Exception as error:
-                        # A broken API must never prevent disposal of our own container.
                         print('Diagnostic collection incomplete: ' + self.clean(str(error))[:250], flush=True)
                     if self.previous_map_count is not None:
                         try:
-                            self.command(['docker', 'exec', self.name, 'sysctl', '-w',
-                                          'vm.max_map_count=' + str(self.previous_map_count)])
+                            self.root_command(['sysctl', '-w', 'vm.max_map_count=' + str(self.previous_map_count)])
                         except Exception as error:
                             failed = True
                             self.record('kernel-cleanup', 'FAIL', cleanup_started, str(error))
                     if not self.args.keep:
-                        self.command(['docker', 'rm', '--force', '--volumes', self.name])
-                self.record('cleanup', 'PASS', cleanup_started, 'Cluster retained.' if self.created and self.args.keep else 'No test cluster retained.')
+                        self.cleanup_workloads()
+                detail = ('Native K3s retained; ' + ('test workloads retained.' if self.args.keep else 'test namespace deletion requested.')) if self.created else 'No native installation attempted.'
+                self.record('cleanup', 'PASS', cleanup_started, detail)
             except Exception as error:
                 failed = True
                 self.record('cleanup', 'FAIL', cleanup_started, str(error))
             self.report()
+            if self.created:
+                private(self.path / 'native.json', json.dumps({'k3s': self.k3s, 'namespaces': sorted(self.namespaces)}))
             print('Report: ' + str(self.path / 'report.json'), flush=True)
         return 1 if failed else 0
 
@@ -847,12 +938,24 @@ class Lab:
 def cleanup(run_id):
     if not re.fullmatch(r'\d{8}T\d{6}Z-[0-9a-f]{6}', run_id):
         raise ValueError('Invalid run ID')
-    name = 'alias-smoke-' + run_id.lower()
-    result = subprocess.run(['docker', 'inspect', '--format', '{{index .Config.Labels "' + LABEL + '"}}', name],
+    path = STATE / 'runs' / run_id
+    state = json.loads((path / 'native.json').read_text())
+    client = [state['k3s'], 'kubectl', '--kubeconfig', str(path / 'kubeconfig'), '--request-timeout=30s']
+    result = subprocess.run(client + ['get', 'namespace', 'alias-smoke-control', '-o', 'json'],
                             capture_output=True, text=True, check=True)
-    if result.stdout.strip() != run_id:
-        raise ValueError('Container ownership label does not match; refusing cleanup')
-    subprocess.run(['docker', 'rm', '--force', '--volumes', name], check=True)
+    if json.loads(result.stdout).get('metadata', {}).get('labels', {}).get(LABEL) != run_id:
+        raise ValueError('Cluster ownership label does not match; refusing cleanup')
+    for name in state['namespaces']:
+        if name == 'alias-smoke-control':
+            continue
+        result = subprocess.run(client + ['get', 'namespace', name, '--ignore-not-found', '-o', 'json'],
+                                capture_output=True, text=True, check=True)
+        if not result.stdout.strip():
+            continue
+        if json.loads(result.stdout).get('metadata', {}).get('labels', {}).get(LABEL) != run_id:
+            raise ValueError('Namespace ownership label does not match; refusing cleanup: ' + name)
+        subprocess.run(client + ['delete', 'namespace', name, '--wait=false'], check=True)
+    print('Test namespace deletion requested; native K3s remains installed.')
 
 
 def main():
@@ -860,13 +963,13 @@ def main():
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument('--plan', dest='mode', action='store_const', const='plan', help='print coverage without downloads or cluster changes (default)')
     modes.add_argument('--check', dest='mode', action='store_const', const='check', help='check local prerequisites and write report')
-    modes.add_argument('--run', dest='mode', action='store_const', const='run', help='install isolated K3s, test components, remove test cluster')
-    modes.add_argument('--cleanup', metavar='RUN_ID', help='remove a retained test cluster after verifying its ownership label')
+    modes.add_argument('--run', dest='mode', action='store_const', const='run', help='execute install-k3s.sh, then install/test Kubernetes components')
+    modes.add_argument('--cleanup', metavar='RUN_ID', help='delete owned test namespaces; retain the native K3s installation')
     parser.set_defaults(mode='plan')
     parser.add_argument('--components', default='all', help='comma-separated components, or all; dependencies are included')
     parser.add_argument('--timeout', type=int, default=900, help='seconds per deployment/probe (default 900)')
     parser.add_argument('--build-timeout', type=int, default=3600, help='seconds per custom image build/push')
-    parser.add_argument('--keep', action='store_true', help='retain test cluster/PVCs for inspection (finished services are still unloaded)')
+    parser.add_argument('--keep', action='store_true', help='retain test namespaces/PVCs for inspection (native K3s always remains installed)')
     args = parser.parse_args()
     if args.timeout < 1 or args.build_timeout < 1:
         parser.error('timeouts must be positive')
@@ -876,14 +979,15 @@ def main():
             cleanup(args.cleanup)
             return 0
         if args.mode == 'plan':
-            print('Disposable K3s / Docker; locked images/charts; synthetic data; sequential installation.')
+            print('Native article install-k3s.sh -> Ready node/CoreDNS -> Kubernetes components -> functional checks.')
+            print('K3s includes containerd; image builds run in a Kubernetes BuildKit Pod. No host Docker is required.')
             for component in components:
                 print(component + ': ' + PURPOSES[component])
             print('Use --check for prerequisites or --run to install and execute. Full coverage reports GlusterFS as BLOCKED.')
             return 0
         os.umask(0o077)
         return Lab(args).run()
-    except (ValueError, subprocess.SubprocessError) as error:
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
         parser.error(str(error))
 
 

@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import yaml
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -40,7 +41,7 @@ class LocalSmokeTests(unittest.TestCase):
 
     def test_unavailable_runtime_reports_not_run_and_nonzero(self):
         lab = self.lab()
-        with patch.object(lab, 'preflight', side_effect=smoke.Blocked('Docker unavailable')), \
+        with patch.object(lab, 'preflight', side_effect=smoke.Blocked('Administrator access unavailable')), \
                 patch.object(lab, 'bootstrap') as bootstrap, redirect_stdout(io.StringIO()):
             self.assertEqual(lab.run(), 1)
         bootstrap.assert_not_called()
@@ -63,18 +64,20 @@ class LocalSmokeTests(unittest.TestCase):
         self.assertEqual(statuses['registry'], 'BLOCKED')
         self.assertEqual(statuses['opensearch'], 'PASS')
 
-    def test_broken_api_during_bootstrap_still_disposes_owned_container(self):
+    def test_broken_api_during_bootstrap_still_requests_owned_namespace_cleanup(self):
         lab = self.lab('storage')
         def bootstrap():
             lab.created = True
             raise RuntimeError('API never ready')
         with patch.object(lab, 'preflight'), patch.object(lab, 'bootstrap', side_effect=bootstrap), \
                 patch.object(lab, 'diagnostics', side_effect=RuntimeError('API unreachable')), \
+                patch.object(lab, 'cleanup_workloads') as cleanup, \
                 patch.object(lab, 'command') as command, redirect_stdout(io.StringIO()):
             self.assertEqual(lab.run(), 1)
-        command.assert_called_once_with(['docker', 'rm', '--force', '--volumes', lab.name])
+        cleanup.assert_called_once()
+        command.assert_not_called()  # Never uninstall the article's system service.
 
-    def test_retention_and_explicit_cleanup_verify_container_ownership(self):
+    def test_retention_and_explicit_cleanup_verify_cluster_ownership(self):
         lab = self.lab('storage', keep=True)
         def bootstrap():
             lab.created = True
@@ -83,7 +86,10 @@ class LocalSmokeTests(unittest.TestCase):
                 patch.object(lab, 'diagnostics'), patch.object(lab, 'command') as command, redirect_stdout(io.StringIO()):
             self.assertEqual(lab.run(), 0)
         command.assert_not_called()
-        with patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, 'wrong-owner\n')) as run:
+        smoke.private(lab.path / 'native.json', json.dumps({'k3s': '/test/k3s', 'namespaces': ['storage']}))
+        with patch.object(smoke, 'STATE', lab.path.parent.parent), \
+                patch.object(Path, 'read_text', return_value=json.dumps({'k3s': '/test/k3s', 'namespaces': ['storage']})), \
+                patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '{"metadata":{"labels":{}}}')) as run:
             with self.assertRaisesRegex(ValueError, 'ownership'):
                 smoke.cleanup(lab.id)
             self.assertEqual(run.call_count, 1)
@@ -108,7 +114,37 @@ class LocalSmokeTests(unittest.TestCase):
         self.assertEqual(output, 'private-key-material')
         self.assertNotIn(output, (lab.path / 'logs/preflight.log').read_text())
 
-    def test_failed_probe_restores_kernel_setting_before_container_removal(self):
+    def test_native_bootstrap_executes_article_entrypoint_and_preserves_its_options(self):
+        lab = self.lab('storage')
+        lab.path.mkdir()
+        lab.bin.mkdir()
+        lab.env['KUBECONFIG'] = str(lab.path / 'kubeconfig')
+        lab.values.update(REGISTRY_USER='synthetic', REGISTRY_PASSWORD='synthetic-password')
+        base = yaml.safe_load((ROOT / 'k3s-config.yaml').read_text())
+        def command(args, **kwargs):
+            if args[0] == lab.py:
+                return json.dumps(base)
+            if args[0] == 'systemctl':
+                return 'active\n'
+            if '--version' in args:
+                return 'k3s version ' + lab.lock['k3s'] + ' (test)\n'
+            return ''
+        def privileged(args, **kwargs):
+            return 'apiVersion: v1\n' if args[0] == 'cat' else ''
+        with patch.object(lab, 'tools'), patch.object(lab, 'snapshot'), patch.object(lab, 'command', side_effect=command), \
+                patch.object(lab, 'root_command', side_effect=privileged) as root, \
+                patch.object(lab, 'k', return_value='{}'), redirect_stdout(io.StringIO()):
+            lab.bootstrap()
+        install = root.call_args_list[0].args[0]
+        self.assertEqual(install[-2:], ['bash', str(ROOT / 'install-k3s.sh')])
+        self.assertIn('K3S_VERSION=' + lab.lock['k3s'], install)
+        effective = json.loads((lab.path / 'k3s-config.yaml').read_text())
+        for key, value in base.items():
+            self.assertEqual(effective[key], value)
+        self.assertNotIn('disable', effective)  # Preserve article defaults such as Traefik.
+        self.assertTrue(any(row['component'] == 'install-k3s' and row['status'] == 'PASS' for row in lab.rows))
+
+    def test_failed_probe_restores_kernel_setting_before_namespace_cleanup(self):
         lab = self.lab('storage')
         def bootstrap():
             lab.created = True
@@ -116,11 +152,12 @@ class LocalSmokeTests(unittest.TestCase):
         with patch.object(lab, 'preflight'), patch.object(lab, 'bootstrap', side_effect=bootstrap), \
                 patch.object(lab, 'storage', side_effect=RuntimeError('probe failed')), \
                 patch.object(lab, 'release_unused'), patch.object(lab, 'diagnostics'), \
-                patch.object(lab, 'command') as command, redirect_stdout(io.StringIO()):
+                patch.object(lab, 'cleanup_workloads') as cleanup, \
+                patch.object(lab, 'root_command') as command, redirect_stdout(io.StringIO()):
             self.assertEqual(lab.run(), 1)
         self.assertEqual(command.call_args_list[0].args[0],
-                         ['docker', 'exec', lab.name, 'sysctl', '-w', 'vm.max_map_count=65530'])
-        self.assertEqual(command.call_args_list[1].args[0], ['docker', 'rm', '--force', '--volumes', lab.name])
+                         ['sysctl', '-w', 'vm.max_map_count=65530'])
+        cleanup.assert_called_once()
 
     def test_probe_sources_and_scheduled_dag_compile(self):
         common = (ROOT / 'scripts/smoke-probes/common.py').read_text()
