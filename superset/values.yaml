@@ -19,7 +19,8 @@ serviceAccount:
 # @default -- see `values.yaml`
 bootstrapScript: |
   #!/bin/bash
-  pip install --no-deps --require-hashes --only-binary=:all: -r /app/pythonpath/requirements.lock &&\
+  set -eu
+  pip install --no-deps --require-hashes --only-binary=:all: -r {{ .Values.extraConfigMountPath }}/requirements.lock
   if [ ! -f ~/bootstrap ]; then echo "Running Superset with uid {{ .Values.runAsUser }}" > ~/bootstrap; fi
 
 # -- The name of the secret which we will use to generate a superset_config.py file
@@ -1323,7 +1324,7 @@ redis:
     ## The name of an existing secret that contains the redis password.
     existingSecret: ""
     ## Name of the key containing the secret.
-    existingSecretKey: ""
+    existingSecretPasswordKey: ""
     ## Redis password
     password: ""
   ##

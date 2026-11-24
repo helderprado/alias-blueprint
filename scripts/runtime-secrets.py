@@ -261,7 +261,9 @@ def build(component):
                    'DB_NAME': 'SUPERSET_DB_NAME', 'REDIS_PASSWORD': 'SUPERSET_REDIS_PASSWORD'}
         secret('superset-runtime', {key: required(var) for key, var in mapping.items()})
         return secrets, {'extraEnvRaw': [ref('superset-runtime', key, key) for key in mapping],
-            'redis': {'auth': {'enabled': True, 'existingSecret': 'superset-runtime', 'existingSecretKey': 'REDIS_PASSWORD'}}}
+            'supersetNode': {'connections': {'db_host': required('SUPERSET_DB_HOST'),
+                'db_user': required('SUPERSET_DB_USER'), 'db_name': required('SUPERSET_DB_NAME')}},
+            'redis': {'auth': {'enabled': True, 'existingSecret': 'superset-runtime', 'existingSecretPasswordKey': 'REDIS_PASSWORD'}}}
     raise ValueError('Unknown component')
 
 
