@@ -170,6 +170,15 @@ MySQL example, follow [database setup](databases/mlflow-db/README.md).
    Configure optional cross-service integrations after their endpoints exist.
 7. Verify with the checks in §7.
 
+Rancher is installed as release `rancher` in namespace `cattle-system`.
+`install-rancher.sh` creates that namespace when absent using
+`helm upgrade --install --create-namespace` and reuses it on subsequent runs;
+manual namespace creation is not required. The script also installs cert-manager
+in its separate `cert-manager` namespace with the same creation flag. Merely
+passing `--namespace cattle-system` selects a namespace without creating it.
+See the [Rancher installation procedure](https://ranchermanager.docs.rancher.com/getting-started/installation-and-upgrade/install-upgrade-on-a-kubernetes-cluster)
+and [Helm upgrade options](https://helm.sh/docs/v3/helm/helm_upgrade/).
+
 ## 5. Credential policy
 
 This repository contains no credential material. Every credential the
