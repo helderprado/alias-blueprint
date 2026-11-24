@@ -15,7 +15,9 @@ def query(sql):
         result = request(result['nextUri'], headers=headers, context=context)
         rows.extend(result.get('data', []))
         time.sleep(0.1)
-    assert not result.get('error'), result
+    if result.get('error'):
+        raise RuntimeError('Trino query failed: ' + result['error'].get('message', '') +
+                           ' [' + result['error'].get('errorName', '') + ']')
     return rows
 assert query('SELECT count(*) FROM tpch.tiny.nation') == [[25]]
 assert query('SELECT count(*), sum(amount) FROM pinot.default.alias_smoke') == [[3, 60]]

@@ -1,11 +1,26 @@
 base = 'http://pinot-controller.pinot.svc.cluster.local:9000'
+wait_for(lambda: request(base + '/health'), 'Pinot controller Service readiness')
+for path in ('/tables/alias_smoke', '/schemas/alias_smoke'):
+    try:
+        request(base + path, 'DELETE')
+    except urllib.error.HTTPError as error:
+        if error.code != 404:
+            raise
 request(base + '/schemas', 'POST', {'schemaName': 'alias_smoke',
     'dimensionFieldSpecs': [{'name': 'id', 'dataType': 'INT'}],
     'metricFieldSpecs': [{'name': 'amount', 'dataType': 'INT'}]})
-request(base + '/tables', 'POST', {'tableName': 'alias_smoke', 'tableType': 'OFFLINE',
+table_config = {'tableName': 'alias_smoke', 'tableType': 'OFFLINE',
     'segmentsConfig': {'schemaName': 'alias_smoke', 'replication': '1'},
     'tableIndexConfig': {'loadMode': 'MMAP'},
-    'tenants': {'broker': 'DefaultTenant', 'server': 'DefaultTenant'}, 'metadata': {}})
+    'tenants': {'broker': 'DefaultTenant', 'server': 'DefaultTenant'}, 'metadata': {}}
+def create_table():
+    try:
+        return request(base + '/tables', 'POST', table_config)
+    except urllib.error.HTTPError as error:
+        if error.code == 409:  # Helix's old external view is removed asynchronously.
+            return False
+        raise
+wait_for(create_table, 'Pinot table creation after external-view cleanup')
 boundary = 'alias_smoke_boundary'
 rows = '\n'.join(json.dumps({'id': n, 'amount': n * 10}) for n in (1, 2, 3))
 body = ('--' + boundary + '\r\nContent-Disposition: form-data; name="file"; filename="data.json"\r\n'

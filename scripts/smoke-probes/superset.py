@@ -6,15 +6,21 @@ Path('/tmp/alias-trino-ca.pem').write_text(SMOKE['ca'])
 uri = URL.create('trino', username=SMOKE['user'], password=SMOKE['password'],
                  host='trino.trino.svc.cluster.local', port=8443, database='pinot/default',
                  query={'protocol': 'https'}).render_as_string(hide_password=False)
-extra = {'engine_params': {'connect_args': {'verify': '/tmp/alias-trino-ca.pem'}}}
+extra = {'engine_params': {'connect_args': {'verify': '/tmp/alias-trino-ca.pem', 'http_scheme': 'https'}}}
 app = create_app()
 with app.app_context():
     from superset import db
     from superset.extensions import cache_manager
-    from superset.models.core import Database, Slice, Dashboard
+    from superset.models.core import Database
+    from superset.models.slice import Slice
+    from superset.models.dashboard import Dashboard
     from superset.connectors.sqla.models import SqlaTable
-    database = Database(database_name='alias_smoke_trino', sqlalchemy_uri=uri,
-                        extra=json.dumps(extra), expose_in_sqllab=True)
+    database = db.session.query(Database).filter_by(database_name='alias_smoke_trino').one_or_none()
+    if database is None:
+        database = Database(database_name='alias_smoke_trino')
+    database.set_sqlalchemy_uri(uri)
+    database.extra = json.dumps(extra)
+    database.expose_in_sqllab = True
     db.session.add(database)
     db.session.flush()
     # Use Superset's configured database connection, including its TLS options.
@@ -23,12 +29,18 @@ with app.app_context():
             from sqlalchemy import text
             row = connection.execute(text('SELECT count(*), sum(amount) FROM alias_smoke')).fetchone()
             assert list(row) == [3, 60], row
-    table = SqlaTable(table_name='alias_smoke', schema='default', database=database)
+    table = db.session.query(SqlaTable).filter_by(table_name='alias_smoke', schema='default', database_id=database.id).one_or_none()
+    if table is None:
+        table = SqlaTable(table_name='alias_smoke', schema='default', database=database)
     db.session.add(table)
     db.session.flush()
-    chart = Slice(slice_name='Alias smoke count', datasource_id=table.id, datasource_type='table',
-                  viz_type='table', params=json.dumps({'all_columns': ['id', 'amount'], 'row_limit': 10}))
-    dashboard = Dashboard(dashboard_title='Alias smoke dashboard', published=True)
+    chart = db.session.query(Slice).filter_by(slice_name='Alias smoke count', datasource_id=table.id, datasource_type='table').one_or_none()
+    if chart is None:
+        chart = Slice(slice_name='Alias smoke count', datasource_id=table.id, datasource_type='table',
+                      viz_type='table', params=json.dumps({'all_columns': ['id', 'amount'], 'row_limit': 10}))
+    dashboard = db.session.query(Dashboard).filter_by(dashboard_title='Alias smoke dashboard').one_or_none()
+    if dashboard is None:
+        dashboard = Dashboard(dashboard_title='Alias smoke dashboard', published=True)
     dashboard.slices = [chart]
     db.session.add_all([chart, dashboard])
     db.session.commit()

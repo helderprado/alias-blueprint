@@ -45,6 +45,9 @@ class RenderLab(smoke.Lab):
         pass
 
     def k(self, *args, **kwargs):
+        if 'secret' in args:
+            import base64
+            return json.dumps({'data': {'tls.crt': base64.b64encode(b'synthetic-public-ca').decode()}})
         return '{}'
 
     def command(self, args, **kwargs):
@@ -110,6 +113,28 @@ class LocalProfileChartTests(unittest.TestCase):
             lab.deploy('cert-manager', {'installCRDs': True}, runtime=False)
             self.assertFalse(any(doc and doc.get('metadata', {}).get('name') == 'pinot-minion-stateless'
                                  for doc in lab.rendered['pinot']))
+            redis = next(doc for doc in lab.rendered['superset'] if doc and doc['kind'] == 'StatefulSet'
+                         and doc['metadata']['name'] == 'superset-redis-master')
+            password = next(item for item in redis['spec']['template']['spec']['containers'][0]['env']
+                            if item['name'] == 'REDIS_PASSWORD')
+            self.assertEqual(password['valueFrom']['secretKeyRef'],
+                             {'name': 'superset-runtime', 'key': 'REDIS_PASSWORD'})
+            worker = next(doc for doc in lab.rendered['superset'] if doc and doc['kind'] == 'Deployment'
+                          and doc['metadata']['name'] == 'superset-worker')
+            self.assertEqual(worker['spec']['replicas'], 0)
+            env_secret = next(doc for doc in lab.rendered['superset'] if doc and doc['kind'] == 'Secret'
+                              and doc['metadata']['name'] == 'superset-env')
+            self.assertEqual(env_secret['stringData']['DB_HOST'],
+                             lab.values['SUPERSET_DB_HOST'])
+            web = next(doc for doc in lab.rendered['superset'] if doc and doc['kind'] == 'Deployment'
+                       and doc['metadata']['name'] == 'superset')
+            mounts = web['spec']['template']['spec']['containers'][0]['volumeMounts']
+            extra_path = next(mount['mountPath'] for mount in mounts if mount['name'] == 'superset-extra-config')
+            config = next(doc for doc in lab.rendered['superset'] if doc and doc['kind'] == 'Secret'
+                          and doc['metadata']['name'] == 'superset-config')
+            bootstrap = config['stringData']['superset_bootstrap.sh']
+            self.assertIn('-r ' + extra_path + '/requirements.lock', bootstrap)
+            self.assertIn('set -eu', bootstrap)
             for name, docs in lab.rendered.items():
                 for document in filter(None, docs):
                     if document['kind'] == 'Service':

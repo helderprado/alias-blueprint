@@ -8,11 +8,14 @@ opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookies)
 def login():
     with opener.open(base + '/login', timeout=30) as response:
         page = response.read().decode()
-    csrf = re.search(r'name="csrf_token"[^>]*value="([^"]+)"', page)
-    assert csrf, 'pgAdmin login form has no CSRF token'
-    body = urllib.parse.urlencode({'email': 'smoke@local.test', 'password': SMOKE['password'],
+    csrf = re.search(r'"csrfToken"\s*:\s*"([^"]+)"', page)
+    assert csrf, 'pgAdmin login page properties have no CSRF token'
+    login_url = re.search(r'"loginUrl"\s*:\s*"([^"]+)"', page)
+    assert login_url, 'pgAdmin login page properties have no login URL'
+    body = urllib.parse.urlencode({'email': 'smoke@example.org', 'password': SMOKE['password'],
                                  'csrf_token': csrf.group(1)}).encode()
-    with opener.open(urllib.request.Request(base + '/login', data=body), timeout=30) as response:
+    with opener.open(urllib.request.Request(base + login_url.group(1), data=body,
+                                          headers={'X-pgA-CSRFToken': csrf.group(1)}), timeout=30) as response:
         assert '/login' not in response.url, 'pgAdmin login failed'
     return True
 wait_for(login, 'pgAdmin login')

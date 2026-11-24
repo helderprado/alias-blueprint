@@ -5,6 +5,7 @@ from contextlib import redirect_stdout
 import importlib.util
 import io
 import json
+import hashlib
 from pathlib import Path
 import subprocess
 import tempfile
@@ -36,6 +37,8 @@ class LocalSmokeTests(unittest.TestCase):
                 self.assertLess(stages.index(dependency), stages.index(name))
         self.assertTrue({'databases', 'registry', 'minio', 'spark', 'pinot', 'trino'} <= set(stages))
         self.assertNotIn('rancher', stages)
+        self.assertEqual(smoke.selection('local'), [name for name in smoke.STAGES if name != 'glusterfs'])
+        self.assertEqual(smoke.selection('all'), list(smoke.STAGES))
         with self.assertRaises(ValueError):
             smoke.selection('unknown')
 
@@ -49,6 +52,30 @@ class LocalSmokeTests(unittest.TestCase):
         self.assertEqual(report['checks'][0]['status'], 'BLOCKED')
         self.assertTrue(all(row['status'] == 'NOT_RUN' for row in report['checks'][1:-1]))
         self.assertEqual((lab.path / 'report.json').stat().st_mode & 0o777, 0o600)
+
+    def test_namespace_ownership_survives_component_client_side_apply(self):
+        lab = self.lab('storage')
+        labels, last_applied = {}, {}
+        def apply(document):
+            nonlocal last_applied
+            current = document['metadata'].get('labels', {})
+            # Kubernetes client-side apply prunes fields from its previous manifest.
+            for key in last_applied.keys() - current.keys():
+                labels.pop(key, None)
+            labels.update(current)
+            last_applied = dict(current)
+        def kubectl(*args):
+            if args[0] == 'label':
+                key, value = args[3].split('=', 1)
+                labels[key] = value
+        with patch.object(lab, 'apply', side_effect=apply), patch.object(lab, 'k', side_effect=kubectl):
+            lab.namespace('airflow')
+            # runtime-secrets.py and component manifests apply a bare Namespace.
+            apply({'metadata': {'name': 'airflow'}})
+            self.assertEqual(labels[smoke.LABEL], lab.id)
+            lab.namespace('airflow')
+            apply({'metadata': {'name': 'airflow', 'labels': {'app': 'airflow'}}})
+            self.assertEqual(labels[smoke.LABEL], lab.id)
 
     def test_failed_stage_blocks_dependents_but_runs_independent_stage(self):
         lab = self.lab('registry,opensearch')
@@ -107,6 +134,30 @@ class LocalSmokeTests(unittest.TestCase):
         encoded = base64.b64encode(token.encode()).decode()
         self.assertEqual(lab.clean(token + ' ' + encoded), '[REDACTED] [REDACTED]')
 
+    def test_resume_requires_verified_installer_hashes_and_cluster_ownership(self):
+        lab = self.lab('storage')
+        lab.path.mkdir()
+        lab.args.resume_run = lab.id
+        previous = {'cluster': {'installer_verified': True,
+            'installer_sha256': hashlib.sha256((ROOT / 'install-k3s.sh').read_bytes()).hexdigest(),
+            'article_config_sha256': hashlib.sha256((ROOT / 'k3s-config.yaml').read_bytes()).hexdigest()},
+            'checks': [{'component': 'install-k3s', 'status': 'PASS'}], 'machine': {'cpus': 6}}
+        smoke.private(lab.path / 'report.json', json.dumps(previous))
+        with patch.object(lab, 'k', return_value='{"metadata":{"labels":{}}}'):
+            with self.assertRaisesRegex(smoke.Blocked, 'ownership'):
+                lab.preflight()
+        marker = json.dumps({'metadata': {'labels': {smoke.LABEL: lab.id}}})
+        with patch.object(lab, 'k', return_value=marker), patch.object(lab, 'root_command') as privileged:
+            lab.preflight()
+        privileged.assert_not_called()
+        self.assertTrue(list((lab.path / 'attempts').glob('*.json')))
+        previous['cluster']['installer_sha256'] = '0' * 64
+        smoke.private(lab.path / 'report.json', json.dumps(previous))
+        with patch.object(lab, 'k') as client:
+            with self.assertRaisesRegex(smoke.Blocked, 'changed'):
+                lab.preflight()
+        client.assert_not_called()
+
     def test_sensitive_reads_are_available_to_caller_but_never_logged(self):
         lab = self.lab()
         with patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, 'private-key-material', '')):
@@ -133,7 +184,7 @@ class LocalSmokeTests(unittest.TestCase):
             return 'apiVersion: v1\n' if args[0] == 'cat' else ''
         with patch.object(lab, 'tools'), patch.object(lab, 'snapshot'), patch.object(lab, 'command', side_effect=command), \
                 patch.object(lab, 'root_command', side_effect=privileged) as root, \
-                patch.object(lab, 'k', return_value='{}'), redirect_stdout(io.StringIO()):
+                patch.object(lab, 'k', return_value='{"items":[{}]}'), redirect_stdout(io.StringIO()):
             lab.bootstrap()
         install = root.call_args_list[0].args[0]
         self.assertEqual(install[-2:], ['bash', str(ROOT / 'install-k3s.sh')])
@@ -171,6 +222,28 @@ class LocalSmokeTests(unittest.TestCase):
                 patch.object(lab, 'deploy'), patch.object(lab, 'probe'):
             lab.airflow()
         compile(maps[0][2]['alias_smoke.py'], 'alias_smoke.py', 'exec')
+
+    def test_empty_chart_documents_never_reach_kubernetes_post_renderer(self):
+        renderer_spec = importlib.util.spec_from_file_location('renderer_smoke', ROOT / 'scripts/locked-images.py')
+        renderer = importlib.util.module_from_spec(renderer_spec)
+        renderer_spec.loader.exec_module(renderer)
+        text = '---\n\n---\napiVersion: v1\nkind: ConfigMap\nmetadata: {name: example}\n---\n'
+        documents = list(yaml.safe_load_all(renderer.render(text, {})))
+        self.assertEqual(len(documents), 1)
+        self.assertEqual(documents[0]['kind'], 'ConfigMap')
+
+    def test_http_error_body_is_redacted_and_status_type_preserved(self):
+        import urllib.error
+        namespace = {'SMOKE': {'password': 'private-probe-password'}}
+        exec((ROOT / 'scripts/smoke-probes/common.py').read_text(), namespace)
+        error = urllib.error.HTTPError('http://test.local', 404, 'Not Found', {},
+                                       io.BytesIO(b'private-probe-password missing'))
+        with patch('urllib.request.urlopen', side_effect=error):
+            with self.assertRaises(urllib.error.HTTPError) as caught:
+                namespace['request']('http://test.local')
+        self.assertEqual(caught.exception.code, 404)
+        self.assertNotIn('private-probe-password', str(caught.exception))
+        self.assertIn('[REDACTED]', str(caught.exception))
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@ base = 'http://openmetadata.openmetadata.svc.cluster.local:8585/api/v1'
 headers = {'Authorization': 'Bearer ' + SMOKE['token']}
 mlflow = 'http://mlflow.mlflow.svc.cluster.local:5000'
 model = request(mlflow + '/api/2.0/mlflow/registered-models/get?name=' + SMOKE['model'])['registered_model']
-service = request(base + '/services/mlmodelServices', 'POST', {
+service = request(base + '/services/mlmodelServices', 'PUT', {
     'name': 'alias_smoke_mlflow', 'serviceType': 'Mlflow',
     'connection': {'config': {'type': 'Mlflow', 'trackingUri': mlflow, 'registryUri': mlflow}}}, headers)
 entity = request(base + '/mlmodels', 'PUT', {'name': model['name'], 'algorithm': 'synthetic',

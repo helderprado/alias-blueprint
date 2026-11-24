@@ -8,7 +8,7 @@ import yaml
 
 
 def render(text, images):
-    documents = list(yaml.safe_load_all(text))
+    documents = [document for document in yaml.safe_load_all(text) if document is not None]
     def visit(value):
         if isinstance(value, dict):
             if isinstance(value.get('image'), str):
