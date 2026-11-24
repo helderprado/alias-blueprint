@@ -79,7 +79,7 @@ a tag. Digests do not imply vulnerability, compatibility, or license review.
 | `httpd:2.4-alpine` | `httpd@sha256:32bd0639bcc4917ef1fd9363a1d9dd2dd9c498565118b062a10d51e43a5c3a24` |
 | `jupyter/all-spark-notebook:python-3.11` | `jupyter/all-spark-notebook@sha256:b63bae2d9d34779ac969deeb4834efd838991f77269ca9a76bf6b0d1f8678d29` |
 | `jupyterhub/k8s-hub:3.2.1` | `jupyterhub/k8s-hub@sha256:1f8db66b29c597d4a26ec9eef08df4472e896a64f50739d5f242a9c18dd43e3c` |
-| `mysql/mysql-server:5.7.28` | `mysql/mysql-server@sha256:5396bc60a6c08abb6b7e8350b255324a91ee9f3ea11f009aea3e4b61ead38bf6` |
+| `mysql:8.4.7` | `mysql@sha256:0426ec38c7a10aa45ba383887df7878f74ee70e2fd589c7b69207f3577901903` |
 | `postgres:13-alpine` | `postgres@sha256:fb9065b6e3e213bdc07edd372a5b2a26245840b7fb65d1fd8b6700106d51805c` |
 | `postgres:14` | `postgres@sha256:c0e9c0e9bac7e4c1834b698217a03ee5c708de30d313c84a506972de0e24b059` |
 | `python:3.11.11-slim-bookworm` | `python@sha256:081075da77b2b55c23c088251026fb69a7b2bf92471e491ff5fd75c192fd38e5` |
@@ -199,14 +199,35 @@ Entry scripts load the repository-root `.env` with `scripts/env.sh`; an exported
 exports. Required credentials are validated before external Secrets and Helm are
 invoked. See `scripts/README.md`.
 
-Local verification covers 13 chart renders, hook/container image digests,
-Python lock structure and hashes recorded by the resolver, shell syntax, and
-automated tests. An additional online dry-run installation of the Python locks
-was not authorized; full image builds and dependency compatibility in the parent
-images have not been tested. The cert-manager ACME solver uses the exact release
-`v1.13.3` inherited from the pinned chart; its digest was not separately queried. There was no cluster
-installation or end-to-end workload measurement. External databases, storage,
-registry permissions and host provisioning are deployment prerequisites. A
+Initial verification covered chart renders, hook/container image digests,
+Python lock structure, shell syntax and mocked tests. The opt-in live smoke
+procedure now executes the actual `install-k3s.sh` in a pinned Ubuntu 22.04
+systemd Docker test host, then installs real Kubernetes services and performs
+cross-service operations. Its reports distinguish PASS, FAIL, BLOCKED and NOT_RUN;
+they record installer/configuration hashes, versions and individual durations.
+The automated live test also verifies every selected component result and host disposal.
+Run `20261123T193921Z-1c7f74` passed all 17 local functional stages and cleanup
+with a fresh K3s installation; the enclosing automated test took about 29 minutes
+with the Ubuntu test-host image and public charts cached. Per-stage results and
+timing boundaries are recorded in the local smoke procedure.
+See [local smoke procedure](scripts/LOCAL_SMOKE.md); successful offline tests
+alone still do not establish live deployment success.
+
+The smoke profile builds the committed MinIO and Spark S3 recipes with pinned
+BuildKit `v0.20.2`, and uses pinned MySQL `8.4.7` on its own fresh PVC because
+MLflow model retrieval/listing requires window functions absent in MySQL 5.7.
+The MLflow database example uses the same MySQL 8.4.7 image, explicit `MYSQL_*`
+Secret references and trigger-creation setting. Its 8.4 PV/PVC names are separate
+from the old 5.7 storage; existing data is not automatically migrated. The smoke
+runner now reads that committed Deployment rather than generating another server
+definition. Other custom image
+recipes, production load/HA, external OIDC, JDBC and multi-host NFS/GlusterFS
+are outside this live profile. Resumed test timings are not fresh replication
+measurements. The Docker host shares the Docker VM kernel and is not a separate
+machine/VM validation. The cert-manager ACME solver uses the exact release
+`v1.13.3` inherited from the pinned chart; its digest was not separately queried.
+External databases, storage, registry permissions and host provisioning remain
+prerequisites for ordinary component deployments. A
 future Rancher-managed cluster or user-submitted Spark workload is outside this
 set of manifests and needs its own lock review.
 
@@ -257,7 +278,8 @@ Trino uses official chart `1.45.0` and image `484`. Pinot's official chart repor
 selects and locks Pinot `1.4.0` and ZooKeeper `3.9.3`. Trino 484's documented Pinot
 connector requires Pinot 1.1.0 or higher. The example connection is optional and
 uses broker-only queries. Chart hashes and image digests were checked against
-publisher metadata. No running queries or cross-service ingestion were measured.
+publisher metadata. The local live profile ingests three rows into Pinot, checks
+the broker result, and queries the same table through authenticated TLS Trino.
 
 Trino has a local password/TLS bootstrap. Pinot uses a private single-tenant HTTP
 profile restricted by NetworkPolicy, not application authentication/TLS. Neither
@@ -330,10 +352,11 @@ bucket policies, private connection exports and the interactive wizard. Use:
 ALIAS_HELM=/path/to/helm python3 -m unittest discover -s scripts/tests -p test_minio.py -v
 ```
 
-The image has not been built or run here. No live S3 operations, cluster
-installation, workload sizing, persistence/failover checks or replication duration
-were measured. Additional consumer integrations are configuration paths, not
-verified end-to-end deployments. Helm rollback cannot undo bucket/IAM state.
+The live smoke profile has built and run this image, provisioned scoped accounts,
+and verified object upload/download/delete plus consumer Spark/MLflow operations.
+Its actual image digest and per-stage outcomes are retained in private run
+artifacts. Production workload sizing, storage failover and multi-host durability
+are not established by those operations. Helm rollback cannot undo bucket/IAM state.
 
 ## Spark workload standardization
 
@@ -367,6 +390,8 @@ ALIAS_HELM=/path/to/helm ALIAS_SPARK_OPERATOR_CHART=/path/to/spark-operator-1.3.
   python3 -m unittest discover -s scripts/tests -p test_spark.py -v
 ```
 
-No Spark image build, live Kubernetes execution, workload benchmark or real
-S3/JDBC/NFS round trip has been measured. See [Spark](spark/README.md) for the
-complete procedure and resource/isolation limits.
+The live smoke profile has built the S3/JDBC-capable image and run distributed
+Spark computations with a real MinIO Parquet round trip, including submissions
+from Airflow and a JupyterHub-spawned notebook Pod. JDBC and NFS round trips,
+workload benchmarks and production scaling remain unverified. See
+[Spark](spark/README.md) for the complete procedure and resource/isolation limits.

@@ -4,6 +4,13 @@ MLflow is already deployed by this repository through the community chart, with
 chart and image pins in `versions.lock.json` and `versions/mlflow.values.json`.
 Both tracking and the model registry use the same MLflow server.
 
+The Service explicitly exposes port 5000, matching the client URLs below. The
+database example and local smoke profile both use MySQL 8.4.7: registry listing
+uses window functions absent in MySQL 5.7. See the
+[MySQL backend procedure](../databases/mlflow-db/README.md) for initialization
+and existing-data migration requirements. The application deployment never
+upgrades an existing database server or its data directory.
+
 Fill the `MLFLOW_*` section of the root `.env` before running:
 
 ```sh

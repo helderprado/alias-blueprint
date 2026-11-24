@@ -61,8 +61,13 @@ The [article installer and Kubernetes smoke runner](LOCAL_SMOKE.md) executes the
 actual `install-k3s.sh` on a clean systemd test host, verifies its native service,
 then installs components and performs service operations through Kubernetes.
 Start with `python3 scripts/local-smoke.py --plan`; run the full procedure with
-`sudo bash install-k3s.sh --smoke`. Host Docker is not required. Its runtime results and
+`sudo bash install-k3s.sh --smoke --components local`. Host Docker is not required. Its runtime results and
 blocked/not-run checks are recorded separately from these configuration tests.
+For an isolated Ubuntu 22.04/systemd test host when Docker is available, append
+`--test-host docker` to the smoke command (without host sudo). The actual article
+installer still runs inside that host. The opt-in `test_live_k3s.py` test verifies
+real installation, all single-host component operations and Service communication,
+and host disposal. Select `--components local` for the complete single-host run.
 
 ## Version locks
 

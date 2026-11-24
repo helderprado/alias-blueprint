@@ -37,7 +37,7 @@ and validation limits.
 | 3 | Processing and AI: Apache Spark, Spark Operator, ETL images | `spark/`, `spark-operator/`, `docker-images/pyspark-aws-psql/`, `docker-images/etl-base-image/`; [Spark procedure](spark/README.md) | Helm installs the Spark Operator and its CRDs; `spark/setup.sh` prepares namespace-scoped driver RBAC, optional runtime Secrets and aggregate quotas; `spark/submit.sh` creates the bounded smoke job | K3s, Helm, webhook connectivity and locked workload images. MinIO/external S3, JDBC and a read-only shared PVC are optional. The smoke check is supplied; domain ETL pipelines and trained models must be supplied separately. |
 | 4 | Analysis and development: JupyterHub | `jupyterhub/deploy.sh`, `jupyterhub/values.yaml`, `jupyterhub/persistent-volume.yaml`, `jupyterhub/service-account*.yaml`, `jupyterhub/images/hub/` | Helm via `deploy.sh`; `kubectl apply` for namespace, static storage and service account/RBAC; optional custom image build | K3s, Helm, `JUPYTERHUB_*` runtime Secret; existing `nfs-share-pvc`, service account `spark`, and referenced pull secret `regcred`. Spark namespace/RBAC is needed for notebook-submitted Spark workloads. |
 | 5 | Workflow orchestration: Apache Airflow | `airflow/deploy.sh`, `airflow/values.yaml`, `airflow/persistent-volume.yaml`, `airflow/image/` | Helm via `deploy.sh`, which prepares namespace and runtime Secrets; optional static PVC / custom image build | K3s, Helm, external metadata database, Fernet and webserver keys. Optional DAG Git source requires an exact commit; optional DAG PVC must exist. Spark integration requires separately supplied DAGs and Spark resources. |
-| 6 | Model lifecycle: MLflow tracking and registry | `mlflow/deploy.sh`, `mlflow/values.yaml`, `mlflow/README.md` | Helm via `deploy.sh`, which prepares namespace and runtime Secret | K3s, Helm, existing MySQL database/user and writable S3-compatible bucket/endpoint; `MLFLOW_*` configuration. Neither database nor bucket is created by this script. |
+| 6 | Model lifecycle: MLflow tracking and registry | `mlflow/deploy.sh`, `mlflow/values.yaml`, `mlflow/README.md` | Helm via `deploy.sh`, which prepares namespace and runtime Secret | K3s, Helm, existing MySQL 8.4 database/user and writable S3-compatible bucket/endpoint; `MLFLOW_*` configuration. Neither database nor bucket is created by this script. |
 | 7 | Catalog and governance: OpenMetadata | `openmetadata/gen-keys.sh`, `openmetadata/deploy.sh`, `openmetadata/values.yaml`, `openmetadata/README.md` | Shell generates local JWT keys; Helm via `deploy.sh` prepares namespace and Secrets, verifies the chart and pins its test image | K3s, Helm, dedicated PostgreSQL database, OpenSearch endpoint/account, OIDC provider and JWT/Fernet keys. `opensearch/` can supply the search endpoint. MLflow ingestion is optional and separately configured; automatic deployment of OpenMetadata ingestion DAGs through Airflow is disabled. |
 | 8 | Query: Trino and Apache Pinot | `trino/gen-security.sh`, `trino/deploy.sh`, `trino/values.yaml`, `trino/catalogs.example.json`; `pinot/deploy.sh`, `pinot/values.yaml` | Shell generates Trino authentication/TLS material; separate Helm deployments prepare namespaces, Secrets/policies and workloads | K3s, Helm and a CNI enforcing NetworkPolicy. Trino needs `TRINO_*` credentials and starts with synthetic catalogs; external sources are optional. Pinot needs persistent storage and ZooKeeper (bundled by default). The Trino–Pinot connection is optional. |
 | 9 | Visualization: Apache Superset | `superset/deploy.sh`, `superset/values.yaml`, `superset/requirements.lock` | Helm via `deploy.sh`; runtime Secret and hashed Python extension installation during bootstrap; chart-managed Redis | K3s, Helm, existing namespace, external PostgreSQL database/user, `SUPERSET_*` keys and Redis password; persistent storage for Redis. Query-source connections such as Trino must be configured separately. |
@@ -68,7 +68,7 @@ Supporting components are outside the nine-layer numbering:
 |---|---|---|---|
 | Private registry | `registry/` | Shell generates htpasswd and pull Secrets; Helm deploys the registry; separate PVC manifest | Existing namespace and `docker-registry-pv-claim`; storage and registry credentials. Optional when only public images are used, subject to component pull-secret settings. |
 | Optional S3 service: MinIO | `minio/configure.py`, `minio/build-image.sh`, `minio/deploy.sh`, `minio/connection.sh`, `minio/chart/` | Interactive local configuration; source-built server/client image; independent Helm release and scoped bucket accounts | K3s, Helm, registry access, an explicit StorageClass or dedicated PVC; optional TLS/pull Secrets. Separate AGPLv3 component; archived Community upstream. See [MinIO](minio/README.md). |
-| Database examples: PostgreSQL and MySQL | `databases/namespace.yaml`, `databases/prod-db/deploy.yaml`, `databases/superset-db/deploy.yaml`, `databases/mlflow-db/deploy.yaml` | Manual configuration and `kubectl apply` | Node paths, namespace and freshly supplied database credentials. Application deploy scripts do not apply these examples or create their external databases. |
+| Database examples: PostgreSQL and MySQL | `databases/namespace.yaml`, `databases/prod-db/deploy.yaml`, `databases/superset-db/deploy.yaml`, `databases/mlflow-db/deploy.yaml` | Manual configuration and `kubectl apply` | Node paths, namespace and freshly supplied database credentials. Application deploy scripts do not apply these examples or create their external databases. See [MySQL 8.4 setup and migration](databases/mlflow-db/README.md). |
 | Database administration: pgAdmin | `pgadmin/` | `deploy.sh` applies Secret, Deployment and Service manifests | Existing namespace, supplied login Secret and separately configured database connections. |
 | Landing page: Homepage | `homepage/` | Helm via `deploy.sh` | Existing namespace; service URLs configured in `values.yaml`. |
 | Search backend: OpenSearch | `opensearch/` | Shell generates TLS/security material; Helm via `deploy.sh` | Persistent storage and `OPENSEARCH_*` credentials. Independently deployable; consumers configure their own endpoint/account. |
@@ -164,11 +164,16 @@ establish that the complete stack has been deployed successfully. See
 
 To validate the article's actual installer and then the Kubernetes components,
 use `python3 scripts/local-smoke.py --plan`, then, on a clean test host/VM,
-`sudo bash install-k3s.sh --smoke`. The runner executes `install-k3s.sh`, checks
+`sudo bash install-k3s.sh --smoke --components local`. The runner executes `install-k3s.sh`, checks
 the native systemd service, node, DNS and NodePort range, then runs sequential
 functional checks with synthetic data. K3s provides containerd; image builds run
 inside Kubernetes without host Docker. Reports are under ignored `.local-smoke/`.
-The native K3s installation is retained, and existing installations are refused. See
+The native K3s installation is retained, and existing installations are refused.
+For a disposable Ubuntu/systemd host using Docker, use
+`bash install-k3s.sh --smoke --test-host docker --components local`; this still executes the article
+installer inside the test host. Automate all single-host functional checks with
+`ALIAS_RUN_K3S_E2E=1 python3 -m unittest discover -s scripts/tests -p test_live_k3s.py -v`.
+See
 [local smoke checks](scripts/LOCAL_SMOKE.md) for coverage, memory requirements,
 component selection, cleanup and explicit validation limits. Unavailable runtime
 dependencies and multi-host GlusterFS are reported without claiming success.
@@ -207,9 +212,11 @@ OpenMetadata, deploy OpenSearch first. Configure optional integrations only afte
 both endpoints are available. Finish with [Verification](#7-verification) and
 the functional checks in each selected component's README.
 
-**Duration.** No end-to-end replication duration has been measured for this
-repository; the existing validation covers local checks and chart rendering,
-as detailed in [VERSIONS.md](VERSIONS.md#configuration-and-verification-limits).
+**Duration.** Local Kubernetes smoke reports record native K3s bootstrap,
+component deployment, functional checks and total elapsed time. These timings
+describe the selected single-host test, not production or multi-host replication;
+see [the smoke procedure](scripts/LOCAL_SMOKE.md) and
+[validation limits](VERSIONS.md#configuration-and-verification-limits).
 For a replication run, record infrastructure preparation, cluster bootstrap,
 component deployment and functional verification separately, plus total elapsed
 time. Measure from the start of preparation through completion of the selected
