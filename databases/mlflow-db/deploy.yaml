@@ -1,8 +1,7 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: mlflow-db-nfs-pv
-  namespace: mlflow-db
+  name: mlflow-db84-local-pv
   labels:
     app: mlflow-db
 spec:
@@ -10,9 +9,11 @@ spec:
   capacity:
     storage: 5Gi
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
   local:
-    path: VOLUME_PATH
+    # Use a new, empty directory; never point 8.4 at a 5.7 data directory.
+    path: VOLUME_PATH_MYSQL84
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -26,31 +27,18 @@ spec:
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: mlflow-db-pv-claim
+  name: mlflow-db84-pv-claim
   namespace: databases
   labels:
     app: mlflow-db
 spec:
   storageClassName: manual
+  volumeName: mlflow-db84-local-pv
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   resources:
     requests:
       storage: 5Gi
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: mlflow-db-secret
-  namespace: databases
-  labels:
-    app: mlflow-db
-type: Opaque
-data:
-  MLFLOW_DATABASE_USER: ""
-  MLFLOW_DATABASE_PASSWORD: ""
-  MLFLOW_DATABASE_NAME: ""
-  MLFLOW_ROOT_PASSWORD: ""
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -58,6 +46,8 @@ metadata:
   name: mlflow-db
   namespace: databases
 spec:
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: mlflow-db
@@ -69,12 +59,37 @@ spec:
     spec:
       containers:
         - name: mysql
-          image: mysql/mysql-server@sha256:5396bc60a6c08abb6b7e8350b255324a91ee9f3ea11f009aea3e4b61ead38bf6
+          image: mysql@sha256:0426ec38c7a10aa45ba383887df7878f74ee70e2fd589c7b69207f3577901903
           imagePullPolicy: "IfNotPresent"
-
-          envFrom:
-            - secretRef:
-                name: mlflow-db-secret
+          args: ["--log-bin-trust-function-creators=1"]
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: mlflow-db84-secret, key: MYSQL_ROOT_PASSWORD}
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef: {name: mlflow-db84-secret, key: MYSQL_DATABASE}
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef: {name: mlflow-db84-secret, key: MYSQL_USER}
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: mlflow-db84-secret, key: MYSQL_PASSWORD}
+          ports:
+            - name: mysql
+              containerPort: 3306
+          startupProbe:
+            tcpSocket: {port: mysql}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u "$MYSQL_USER" "$MYSQL_DATABASE" -Nse "SELECT 1"'
+            periodSeconds: 5
+            timeoutSeconds: 5
                 
           volumeMounts:
             - mountPath: /var/lib/mysql
@@ -83,7 +98,7 @@ spec:
       volumes:
         - name: mlflow-db
           persistentVolumeClaim:
-            claimName: mlflow-db-pv-claim
+            claimName: mlflow-db84-pv-claim
 ---
 apiVersion: v1
 kind: Service

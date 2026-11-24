@@ -17,6 +17,33 @@ spec.loader.exec_module(renderer)
 
 
 class VersionTests(unittest.TestCase):
+    def test_mysql_manifest_initializes_locked_84_on_separate_storage(self):
+        documents = list(yaml.safe_load_all((ROOT / 'databases/mlflow-db/deploy.yaml').read_text()))
+        resources = {doc['kind']: doc for doc in documents if doc}
+        lock = json.loads((ROOT / 'versions.lock.json').read_text())
+        deployment = resources['Deployment']
+        pod = deployment['spec']['template']
+        container = pod['spec']['containers'][0]
+        self.assertEqual(container['image'], lock['images']['mysql:8.4.7'])
+        self.assertFalse(any('5.7' in image for image in lock['images'] if 'mysql' in image))
+        expected = {'MYSQL_ROOT_PASSWORD', 'MYSQL_DATABASE', 'MYSQL_USER', 'MYSQL_PASSWORD'}
+        variables = {item['name']: item['valueFrom']['secretKeyRef'] for item in container['env']}
+        self.assertEqual(set(variables), expected)
+        for name, reference in variables.items():
+            self.assertEqual(reference, {'name': 'mlflow-db84-secret', 'key': name})
+        self.assertNotIn('Secret', resources)  # Applying a manifest must never clear stored credentials.
+        self.assertIn('--log-bin-trust-function-creators=1', container['args'])
+        self.assertEqual(deployment['spec']['strategy']['type'], 'Recreate')
+        self.assertEqual(resources['Service']['spec']['selector'], pod['metadata']['labels'])
+        claim = resources['PersistentVolumeClaim']
+        volume = resources['PersistentVolume']
+        self.assertEqual(claim['spec']['volumeName'], volume['metadata']['name'])
+        self.assertNotEqual(claim['metadata']['name'], 'mlflow-db-pv-claim')
+        self.assertEqual(pod['spec']['volumes'][0]['persistentVolumeClaim']['claimName'], claim['metadata']['name'])
+        self.assertEqual(volume['spec']['persistentVolumeReclaimPolicy'], 'Retain')
+        self.assertEqual(volume['spec']['accessModes'], ['ReadWriteOnce'])
+        self.assertNotIn('namespace', volume['metadata'])
+
     def test_image_lock_and_fail_closed(self):
         lock = json.loads((ROOT / 'versions.lock.json').read_text())
         for source, immutable in lock['images'].items():
