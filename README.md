@@ -89,19 +89,68 @@ Supporting components are outside the nine-layer numbering:
 
 ## 3. Required configuration
 
-No credential is versioned in this repository. Copy `.env.example` to
-`.env` and fill in every variable listed there. The bootstrap scripts
-abort with an explicit message when a required variable is missing.
+No credential is versioned in this repository. Copy [.env.example](.env.example)
+to `.env`, restrict it with `chmod 600 .env`, and fill the sections for the
+components being deployed. Unused component sections may remain empty. Deployment
+scripts validate required inputs before contacting Kubernetes. Variables below
+configure the deployment scripts and the runtime Secrets referenced by the
+manifests; defaults and optional integrations are identified explicitly.
 
 | Variable | Purpose |
 |----------|---------|
-| `K3S_VERSION` | Pinned version used by `install-k3s.sh` |
-| `K3S_CONFIG` | Path to `k3s-config.yaml` |
-| `REGISTRY_HOST` | Host and port of the private registry |
-| `REGISTRY_USER` | Registry user; must not be an administrative account |
-| `REGISTRY_PASSWORD` | Registry password, supplied at runtime |
-| `GLUSTERFS_NODES`, `GLUSTERFS_NFS_SERVER`, `GLUSTERFS_CLIENT_CIDRS` | Optional storage topology and trusted clients; see `glusterfs/.env.example` |
-| ‹demais variáveis extraídas dos manifestos› | |
+| `ALIAS_ENV_FILE` | Optional trusted Bash configuration file instead of the root `.env`; file assignments override exported variables. See [configuration loading](scripts/README.md). |
+| `K3S_VERSION` | Exact K3s release used by `install-k3s.sh`; defaults to the committed pin. |
+| `K3S_CONFIG` | Optional path to the K3s configuration; defaults to the repository's `k3s-config.yaml`. |
+| `REGISTRY_HOST` | Host and port of the private registry. |
+| `REGISTRY_USER`, `REGISTRY_PASSWORD` | Registry credentials supplied at runtime; use a dedicated non-administrative account. |
+| `REGISTRY_SERVICE_ACCOUNT` | Pull-secret ServiceAccount; defaults to `registry-puller`. |
+| `JUPYTERHUB_CRYPT_KEY`, `JUPYTERHUB_AUTH_PASSWORD` | Required Hub encryption key and dummy-authenticator password. Generate the crypt key with `openssl rand -hex 32`. |
+| `MLFLOW_DB_HOST`, `MLFLOW_DB_PORT`, `MLFLOW_DB_NAME`, `MLFLOW_DB_USER`, `MLFLOW_DB_PASSWORD` | Existing MySQL database and credentials for MLflow; port defaults to `3306`. |
+| `MLFLOW_S3_BUCKET`, `MLFLOW_S3_ENDPOINT_URL`, `MLFLOW_S3_ACCESS_KEY_ID`, `MLFLOW_S3_SECRET_ACCESS_KEY` | Existing writable artifact bucket, HTTP(S) endpoint and scoped S3 credentials. See [MLflow](mlflow/README.md). |
+| `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD` | Manual MySQL example: values for `mlflow-db84-secret`, configured separately in [databases/mlflow-db/.env.example](databases/mlflow-db/.env.example). Match the application account to `MLFLOW_DB_*`; see [database setup](databases/mlflow-db/README.md). |
+| `SUPERSET_SECRET_KEY` | Required Superset application secret; generate with `openssl rand -hex 32`. |
+| `SUPERSET_DB_HOST`, `SUPERSET_DB_NAME`, `SUPERSET_DB_USER`, `SUPERSET_DB_PASSWORD` | Existing PostgreSQL metadata database and credentials for Superset, using port `5432`. |
+| `SUPERSET_REDIS_PASSWORD` | Required password for chart-managed Redis. |
+| `AIRFLOW_CHART_VERSION`, `AIRFLOW_VALUES` | Exact chart release (defaults to the version lock) and optional alternate values file. |
+| `AIRFLOW_FERNET_KEY`, `AIRFLOW_WEBSERVER_SECRET_KEY` | Required Fernet encryption key and webserver signing secret. Generate Fernet with `cryptography.fernet.Fernet.generate_key().decode()` in Python. |
+| `AIRFLOW_DATABASE_URL` | Complete SQLAlchemy URL for an existing metadata database; URL-encode special characters in credentials. |
+| `AIRFLOW_DAGS_GIT_REPO`, `AIRFLOW_DAGS_GIT_REF`, `AIRFLOW_DAGS_SUBPATH`, `AIRFLOW_GIT_CREDENTIALS_SECRET` | Optional Git DAG source, exact 40-character commit, subdirectory and existing credential Secret. |
+| `AIRFLOW_DAGS_PVC` | Optional existing DAG claim in `airflow`; see [Airflow](airflow/README.md) for DAG delivery choices. |
+| `OPENSEARCH_ADMIN_USER`, `OPENSEARCH_ADMIN_PASSWORD`, `OPENSEARCH_TRUSTSTORE_PASSWORD` | OpenSearch administrator identity and security-material passwords; run `opensearch/gen-security.sh` before deployment. |
+| `OPENSEARCH_APP_USER`, `OPENSEARCH_APP_PASSWORD`, `OPENSEARCH_APP_INDEX_PATTERNS` | Optional application account: set both credentials or leave both empty; index patterns default to `app-*`. See [OpenSearch](opensearch/README.md). |
+| `OPENMETADATA_JWT_PRIVATE_KEY_FILE`, `OPENMETADATA_JWT_PUBLIC_KEY_FILE` | DER JWT key files; defaults point to `openmetadata/runtime-creds/`. Generate with `bash openmetadata/gen-keys.sh`. |
+| `OPENMETADATA_FERNET_KEY`, `OPENMETADATA_PUBLIC_URL` | Required separate Fernet key and public application URL. |
+| `OPENMETADATA_ADMIN_PRINCIPAL`, `OPENMETADATA_PRINCIPAL_DOMAIN` | Initial administrator's identity-provider principal and domain. |
+| `OPENMETADATA_OIDC_AUTHORITY`, `OPENMETADATA_OIDC_DISCOVERY_URL`, `OPENMETADATA_OIDC_JWKS_URL`, `OPENMETADATA_OIDC_CLIENT_ID`, `OPENMETADATA_OIDC_CLIENT_SECRET` | Required OIDC provider endpoints and client credentials. |
+| `OPENMETADATA_DB_HOST`, `OPENMETADATA_DB_PORT`, `OPENMETADATA_DB_NAME`, `OPENMETADATA_DB_USER`, `OPENMETADATA_DB_PASSWORD`, `OPENMETADATA_DB_PARAMS` | Existing PostgreSQL database and credentials; port defaults to `5432` and connection parameters to `sslmode=require`. |
+| `OPENMETADATA_SEARCH_HOST`, `OPENMETADATA_SEARCH_PORT`, `OPENMETADATA_SEARCH_SCHEME`, `OPENMETADATA_SEARCH_USER`, `OPENMETADATA_SEARCH_PASSWORD` | Independently provisioned search endpoint/account; defaults are HTTPS and port `9200`. |
+| `OPENMETADATA_SEARCH_TRUSTSTORE_FILE`, `OPENMETADATA_SEARCH_TRUSTSTORE_PASSWORD` | Optional truststore for a private search CA; leave empty for a publicly trusted CA. See [OpenMetadata](openmetadata/README.md). |
+| `TRINO_USER`, `TRINO_PASSWORD`, `TRINO_SHARED_SECRET` | Required SQL account and stable cluster shared secret; generate security material with `bash trino/gen-security.sh`. |
+| `TRINO_WORKERS`, `TRINO_ALLOWED_NAMESPACES`, `TRINO_CATALOGS_FILE` | Worker count (default `1`), optional permitted client namespaces and optional JSON catalog configuration. See [Trino](trino/README.md). |
+| `PINOT_CLUSTER_NAME`, `PINOT_ZOOKEEPER_URL`, `PINOT_STORAGE_CLASS`, `PINOT_ALLOWED_NAMESPACES` | Pinot cluster name (default `pinot`), optional external ZooKeeper, storage class and trusted client namespaces. Empty ZooKeeper/storage settings select bundled ZooKeeper/default StorageClass. See [Pinot](pinot/README.md). |
+| `GLUSTERFS_NODES`, `GLUSTERFS_NFS_SERVER`, `GLUSTERFS_CLIENT_CIDRS` | Optional shared-storage hosts, stable NFS gateway and trusted K3s node networks; required when provisioning this storage profile. |
+| `GLUSTERFS_VOLUME`, `GLUSTERFS_REPLICA_COUNT`, `GLUSTERFS_BRICK_MOUNT`, `GLUSTERFS_PROFILES` | Volume name, replication, pre-mounted brick filesystem and consumer profiles. Select `spark` for current Spark jobs; `spark-operator` is the legacy profile. |
+| `GLUSTERFS_NOTEBOOK_UID`, `GLUSTERFS_NOTEBOOK_GID`, `GLUSTERFS_DAGS_UID`, `GLUSTERFS_DAGS_GID`, `GLUSTERFS_REGISTRY_UID`, `GLUSTERFS_REGISTRY_GID` | Initial numeric directory owners; defaults and complete profile are in [glusterfs/.env.example](glusterfs/.env.example). |
+| `SPARK_IMAGE`, `SPARK_IMAGE_PULL_SECRET`, `SPARK_APPLICATION_NAME` | Optional workload image digest/pull Secret and application name. The default smoke image supports compute only; S3/JDBC integrations require a custom image digest. |
+| `SPARK_DRIVER_CORES`, `SPARK_DRIVER_CPU_REQUEST`, `SPARK_DRIVER_CPU_LIMIT`, `SPARK_DRIVER_MEMORY`, `SPARK_DRIVER_MEMORY_OVERHEAD` | Driver CPU and memory budget; defaults are in [.env.example](.env.example). |
+| `SPARK_EXECUTORS`, `SPARK_EXECUTOR_CORES`, `SPARK_EXECUTOR_CPU_REQUEST`, `SPARK_EXECUTOR_CPU_LIMIT`, `SPARK_EXECUTOR_MEMORY`, `SPARK_EXECUTOR_MEMORY_OVERHEAD` | Executor count and per-executor CPU/memory budget. |
+| `SPARK_QUOTA_CPU`, `SPARK_QUOTA_MEMORY`, `SPARK_QUOTA_PODS` | Aggregate limits for all jobs in namespace `spark`; defaults are `4`, `8Gi` and `12`. |
+| `SPARK_DAGS_PVC` | Optional existing Bound claim in `spark`, mounted read-only at `/opt/spark/shared`. |
+| `SPARK_S3_ENABLED`, `SPARK_S3_ENDPOINT_URL`, `SPARK_S3_BUCKET`, `SPARK_S3_ACCESS_KEY_ID`, `SPARK_S3_SECRET_ACCESS_KEY` | Optional S3 integration, disabled by default; endpoint, bucket and credentials are required when enabled. Generic S3/AWS exports from `minio/connection.sh` are also supported. |
+| `SPARK_DB_ENABLED`, `SPARK_DB_URL`, `SPARK_DB_USER`, `SPARK_DB_PASSWORD` | Optional JDBC integration, disabled by default; URL and credentials are required when enabled. See [Spark](spark/README.md). |
+| `MINIO_IMAGE`, `MINIO_IMAGE_PULL_SECRET`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | Independent optional S3 profile: built image digest, optional pull Secret and required server credentials. Configure in `minio/.env`, selected with `ALIAS_ENV_FILE`. |
+| `MINIO_STORAGE_CLASS`, `MINIO_EXISTING_CLAIM`, `MINIO_STORAGE_SIZE` | Choose exactly one storage source: StorageClass or existing Bound claim; requested size defaults to `50Gi`. |
+| `MINIO_CPU_REQUEST`, `MINIO_CPU_LIMIT`, `MINIO_MEMORY_REQUEST`, `MINIO_MEMORY_LIMIT` | MinIO server resource requests and limits. |
+| `MINIO_TLS_SECRET`, `MINIO_ALLOWED_NAMESPACES`, `MINIO_CLIENTS` | Optional existing TLS Secret, trusted client namespaces and bucket-account profiles. |
+| `MINIO_MLFLOW_BUCKETS`, `MINIO_MLFLOW_ACCESS_KEY`, `MINIO_MLFLOW_SECRET_KEY` | MLflow bucket scope and client credentials for the example MinIO profile; additional clients use the same naming pattern. See [minio/.env.example](minio/.env.example) and [MinIO](minio/README.md). |
+
+Some examples also require direct manifest edits: `VOLUME_PATH`,
+`VOLUME_PATH_MYSQL84` and `HOSTNAME_DNS` in local storage manifests, `HOSTNAME_IP`
+in `homepage/values.yaml`, and `{HOSTNAME_IP}` in `install-rancher.sh` are literal
+markers, not variables loaded from `.env`. Supply actual node paths, names and
+service addresses before use. The manual PostgreSQL and pgAdmin Secret examples
+also contain empty credential fields; supply their Secrets separately. For the
+MySQL example, follow [database setup](databases/mlflow-db/README.md).
 
 ## 4. Bootstrap order
 
