@@ -176,6 +176,10 @@ Rancher is installed as release `rancher` in namespace `cattle-system`.
 manual namespace creation is not required. The script also installs cert-manager
 in its separate `cert-manager` namespace with the same creation flag. Merely
 passing `--namespace cattle-system` selects a namespace without creating it.
+The saved local smoke run creates namespaces through its own deployment helper;
+its Rancher result validates the chart and service operations, not an
+end-to-end execution of `install-rancher.sh`. The namespace creation and
+reuse behavior of that shell script has a separate mocked regression check.
 See the [Rancher installation procedure](https://ranchermanager.docs.rancher.com/getting-started/installation-and-upgrade/install-upgrade-on-a-kubernetes-cluster)
 and [Helm upgrade options](https://helm.sh/docs/v3/helm/helm_upgrade/).
 
